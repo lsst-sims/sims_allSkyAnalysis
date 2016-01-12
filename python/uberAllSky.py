@@ -67,11 +67,14 @@ altLimit = 10. # Degrees
 sunAltLimit = np.radians(-20.)
 
 starBrightLimit = -9.
+# Demand this many stars before using the frame in ubercal
+nStarLimit = 200
 
 # get the max dateID
 maxID,mjd = sb.allSkyDB(0,'select max(ID) from dates;', dtypes='int')
 maxID = np.max(maxID)
 
+# Crop off some of the early junky observations
 minMJD = 56900
 minID,mjd = sb.allSkyDB(0,'select min(ID) from dates where mjd > %i;' % minMJD, dtypes='int')
 
@@ -80,16 +83,17 @@ types = [float,float,float, float,float,float,'|S1']
 dtypes = zip(names,types)
 
 # Temp to speed things up
-#maxID = 10000
+maxID = 30000
 #maxID= 300
-maxID = 3000
+#maxID = 3000
+
 
 for dateID in np.arange(minID.max(),minID.max()+maxID+1):
     sqlQ = 'select stars.ra, stars.dec, stars.ID, obs.starMag_inst, obs.starMag_err,obs.sky, obs.filter from obs, stars, dates where obs.starID = stars.ID and obs.dateID = dates.ID and obs.filter = "%s" and obs.dateID = %i and obs.starMag_err != 0 and dates.sunAlt < %f and obs.starMag_inst > %f;' % (filt,dateID,sunAltLimit, starBrightLimit)
 
     # Note that RA,Dec are in degrees
     data,mjd = sb.allSkyDB(dateID, sqlQ=sqlQ, dtypes=dtypes)
-    if data.size > 0:
+    if data.size > nStarLimit:
         alt,az,pa = _altAzPaFromRaDec(np.radians(data['ra']), np.radians(data['dec']),
                                       telescope.lon, telescope.lat, mjd)
 

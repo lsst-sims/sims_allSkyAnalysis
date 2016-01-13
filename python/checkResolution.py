@@ -50,7 +50,7 @@ altLimit = 10. # Degrees
 sunAltLimit = np.radians(-20.)
 
 maxID = 3000
-step = 10
+step = 5
 
 for dateID in np.arange(minID.max(),minID.max()+maxID+1, step):
     sqlQ = 'select stars.ra, stars.dec, stars.ID, obs.starMag_inst, obs.starMag_err,obs.sky, obs.filter from obs, stars, dates where obs.starID = stars.ID and obs.dateID = dates.ID and obs.filter = "%s" and obs.dateID = %i and obs.starMag_err != 0 and dates.sunAlt < %f and obs.starMag_inst > %f;' % (filt,dateID,sunAltLimit, starBrightLimit)
@@ -66,6 +66,7 @@ for dateID in np.arange(minID.max(),minID.max()+maxID+1, step):
             mapFractions[i].append(ratio)
 
 
+print 'nside, resolution (deg), fraction of healpixes populated'
 for mf,nside in zip(mapFractions,nsides):
     resol = hp.nside2resol(nside, arcmin=True)/60.
-    print 'nside = %i, resolution (deg) = %f, fraction of healpixes populated=%f' % (nside, resol,np.median(mf))
+    print ' %i,  %f, %f' % (nside, resol,np.median(mf))

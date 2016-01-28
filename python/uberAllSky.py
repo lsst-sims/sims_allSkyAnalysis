@@ -1,8 +1,7 @@
 import numpy as np
 import lsst.sims.skybrightness as sb
 import healpy as hp
-from lsst.sims.utils import _altAzPaFromRaDec
-from lsst.sims.maf.utils.telescopeInfo import TelescopeInfo
+from lsst.sims.utils import _altAzPaFromRaDec, Site, ObservationMetaData
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import lsqr
 import matplotlib.pylab as plt
@@ -49,7 +48,7 @@ def intid2id(intids, uintids, uids, dtype=int):
 # Try and run ubercal on the cannon data.  Hopefully get out a
 
 # Load up the telescope properties, has .lat and .lon
-telescope = TelescopeInfo('LSST')
+telescope = Site('LSST')
 
 nside = 4
 
@@ -83,7 +82,7 @@ types = [float,float,float, float,float,float,'|S1']
 dtypes = zip(names,types)
 
 # Temp to speed things up
-maxID = 30000
+#maxID = 30000
 #maxID= 300
 #maxID = 3000
 
@@ -95,7 +94,7 @@ for dateID in np.arange(minID.max(),minID.max()+maxID+1):
     data,mjd = sb.allSkyDB(dateID, sqlQ=sqlQ, dtypes=dtypes)
     if data.size > nStarLimit:
         alt,az,pa = _altAzPaFromRaDec(np.radians(data['ra']), np.radians(data['dec']),
-                                      telescope.lon, telescope.lat, mjd)
+                                      ObservationMetaData(mjd=mjd,site=telescope))
 
         # Let's trim off any overly high airmass values
         good = np.where(alt > np.radians(altLimit))
@@ -265,7 +264,7 @@ plt.close(fig)
 # Now to trim off the nights where the zeropoints go very negative
 clipLimit = -0.2
 tooLow = np.where( (patchZP-floatzp) < clipLimit)[0]
-# Reject nieghbor points
+# Reject neighbor points
 tooLow = np.unique(np.array([tooLow-1, tooLow, tooLow+1]).ravel())
 allpts = np.arange(patchZP.size)
 good = np.setdiff1d(allpts,tooLow)

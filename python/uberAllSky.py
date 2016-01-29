@@ -5,6 +5,9 @@ from lsst.sims.utils import _altAzPaFromRaDec, Site, ObservationMetaData
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import lsqr
 import matplotlib.pylab as plt
+from astropy.time import Time
+import warnings
+
 
 #######
 # This uses the all sky camera database, available at:
@@ -77,22 +80,41 @@ maxID = np.max(maxID)
 minMJD = 56900
 minID,mjd = sb.allSkyDB(0,'select min(ID) from dates where mjd > %i;' % minMJD, dtypes='int')
 
+# See if there are any nights where there were observations, but no
+# stars made it into the DB (i.e., it was totally cloudy all night).
+allmjds, blah = sb.allSkyDB(0,'select mjd from dates where mjd > %i;' % minMJD, dtypes='float')
+db_mjds = np.unique(np.floor(allmjds))
+
+rawuts = np.genfromtxt('dayList.dat', dtype='|S8')
+uts = ['20'+day[-2:]+'-'+day[2:4]+'-'+day[4:6] for day in rawuts]
+t = Time(uts, format='iso', scale='utc')
+good = np.where( (t.mjd >= minMJD) )
+t = t[good]
+
+gaps = np.diff(allmjds.ravel())
+nBigGaps = np.where( gaps > 1.5*np.median(gaps))[0].size
+if nBigGaps > t.size:
+    warnings.warn('There are gaps in some nights, cloudy fraction could be off.')
+
 names = ['ra','dec','starID','starMag', 'starMag_err', 'sky', 'filter']
 types = [float,float,float, float,float,float,'|S1']
 dtypes = zip(names,types)
 
 # Temp to speed things up
 #maxID = 30000
-#maxID= 300
+maxID= 300
 #maxID = 3000
 
+totalIDs = 0
+IDsWithStars = 0
 
 for dateID in np.arange(minID.max(),minID.max()+maxID+1):
     sqlQ = 'select stars.ra, stars.dec, stars.ID, obs.starMag_inst, obs.starMag_err,obs.sky, obs.filter from obs, stars, dates where obs.starID = stars.ID and obs.dateID = dates.ID and obs.filter = "%s" and obs.dateID = %i and obs.starMag_err != 0 and dates.sunAlt < %f and obs.starMag_inst > %f;' % (filt,dateID,sunAltLimit, starBrightLimit)
-
+    totalIDs += 1
     # Note that RA,Dec are in degrees
     data,mjd = sb.allSkyDB(dateID, sqlQ=sqlQ, dtypes=dtypes)
     if data.size > nStarLimit:
+        IDsWithStars += 1
         alt,az,pa = _altAzPaFromRaDec(np.radians(data['ra']), np.radians(data['dec']),
                                       ObservationMetaData(mjd=mjd,site=telescope))
 
@@ -270,7 +292,6 @@ allpts = np.arange(patchZP.size)
 good = np.setdiff1d(allpts,tooLow)
 
 clippedPoints = np.in1d(patchIDs,resultPatchIDs[good])
-
 
 
 

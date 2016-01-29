@@ -65,7 +65,7 @@ starMags_err = []
 mjds = []
 airmasses = []
 
-altLimit = 10. # Degrees
+altLimit = 25. # Degrees
 sunAltLimit = np.radians(-20.)
 
 starBrightLimit = -9.
@@ -102,8 +102,8 @@ dtypes = zip(names,types)
 
 # Temp to speed things up
 #maxID = 30000
-maxID= 300
-#maxID = 3000
+#maxID= 300
+maxID = 9000
 
 totalIDs = 0
 IDsWithStars = 0
@@ -140,6 +140,15 @@ starMags = np.array(starMags)
 starMags_err = np.array(starMags_err)
 mjds = np.array(mjds)
 airmasses = np.array(airmasses)
+
+# XXX--looks like the stars can get mis-identified in cloudy conditions
+# for each unique starID, find the robustRMS of the mags, and flag any
+# mjds where the mag gets brighter than 3-sigma?  Maybe also look at the
+# median per-night, and flag whole nights where the median gets significantly brighter
+
+
+
+
 
 # Clobber the dateID and replace it with mjd's rounded to some timestep
 timestep = 15. # minutes
@@ -214,8 +223,6 @@ resultAlt = np.pi/2.-lat
 resultMjds = intid2id(resultDateIDs, np.unique(dateIDs), np.unique(mjds), dtype=float)
 
 
-
-
 # Let's figure out the number of stars per patch:
 bins = np.zeros(resultPatchIDs.size*2, dtype=float)
 bins[::2] = resultPatchIDs-0.5
@@ -243,7 +250,7 @@ ax.set_ylabel('Patch Zeropoint (mags)')
 ax.set_xlabel('MJD-min(MJD) (days)')
 #ax.set_xlim([0,4])
 #ax.set_ylim([-1,1])
-ax.set_title('nside = %i' % nside)
+ax.set_title('nside = %i, hpID=0' % nside)
 fig.savefig('Uber/zpEvo.png')
 plt.close(fig)
 
@@ -294,6 +301,13 @@ good = np.setdiff1d(allpts,tooLow)
 clippedPoints = np.in1d(patchIDs,resultPatchIDs[good])
 
 
+n_frames_clipped_early = totalIDs - IDsWithStars
+n_frames_w_no_fit_patches = np.unique(resultMjds).size - np.unique(resultMjds[good]).size
+
+# Fraction of the time it looks like we can observe some part of the sky
+observe_something_frac = (totalIDs-n_frames_clipped_early-n_frames_w_no_fit_patches)/float(totalIDs)
+
+print 'fraction of frames where some patches got fit = %f' %  observe_something_frac
 
 # Hmm, I'm still getting wacky negative outliers (and a negative airmass correction)
 # Some possible solutions:

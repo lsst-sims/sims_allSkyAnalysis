@@ -53,7 +53,7 @@ def intid2id(intids, uintids, uids, dtype=int):
 # Load up the telescope properties, has .lat and .lon
 telescope = Site('LSST')
 
-nside = 4
+nside = 8
 
 filt = 'R'
 

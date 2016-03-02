@@ -6,6 +6,8 @@ from lsst.sims.utils import Site
 import ephem
 
 
+# Generate the median of the median maps.
+
 nside = 32
 median_map = np.zeros(hp.nside2npix(nside), dtype=float) + hp.UNSEEN
 
@@ -21,6 +23,7 @@ udjd = umjd - doff
 moonAlts = umjd*0.
 sunAlts = umjd*0.
 
+print 'Computing moon and sun altitudes'
 for i,mjd in enumerate(umjd):
     obs.date = udjd[i]
     moon.compute(obs)
@@ -30,12 +33,14 @@ for i,mjd in enumerate(umjd):
 
 goodDates = umjd[np.where((moonAlts < 0) & (sunAlts < np.radians(-18.)))]
 
+print 'looping over each healpixel'
 for i in np.arange(hp.nside2npix(nside)):
     data = medDB(where_clause='hpindex = %i' % i)
     data = data[np.in1d(data['mjd'], goodDates)]
     if np.size(data) > 0:
         median_map[i] = np.median(data['R'])
 
+print 'Finished generating map'
 np.savez('median_map.npz', median_map=median_map)
 hp.mollview(median_map)
 plt.show()

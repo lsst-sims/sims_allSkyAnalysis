@@ -5,6 +5,9 @@ import healpy as hp
 
 
 # grab data from median-binned all-sky database
+# Created by Michael Coughlin and shared at:
+# https://lsst-web.ncsa.illinois.edu/~coughlin/git-repo/mediansql/meddata.sqlite
+
 
 def medDB(where_clause=None, full_select = None, dtypes=None):
     """

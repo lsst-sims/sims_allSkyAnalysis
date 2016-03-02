@@ -4,12 +4,19 @@ import healpy as hp
 import matplotlib.pylab as plt
 from lsst.sims.utils import Site
 import ephem
+from utils import robustRMS
+
 
 
 # Generate the median of the median maps.
 
 nside = 32
-median_map = np.zeros(hp.nside2npix(nside), dtype=float) + hp.UNSEEN
+airmass_limit = 3.
+
+names = ['medianR','medianG','medianB', 'stdR', 'stdG', 'stdB', 'numberR']
+types = [float]*len(names)
+sky_maps = np.zeros(hp.nside2npix(nside), dtype=zip(names, types))
+sky_maps.fill(hp.UNSEEN)
 
 umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
 site = Site('LSST')
@@ -37,10 +44,14 @@ print 'looping over each healpixel'
 for i in np.arange(hp.nside2npix(nside)):
     data = medDB(where_clause='hpindex = %i' % i)
     data = data[np.in1d(data['mjd'], goodDates)]
+    data = data[np.where(data['airmass'] <= airmass_limit)]
     if np.size(data) > 0:
-        median_map[i] = np.median(data['R'])
+        for key in ['R','G','B']:
+            sky_maps['median'+key][i] = np.median(data[key][~np.isnan(data[key])])
+            sky_maps['std'+key][i] = robustRMS(data[key][~np.isnan(data[key])])
+        sky_maps['numberR'][i] = np.size(data['R'][~np.isnan(data[key])])
 
 print 'Finished generating map'
-np.savez('median_map.npz', median_map=median_map)
-hp.mollview(median_map)
-plt.show()
+np.savez('sky_maps.npz', sky_maps=sky_maps)
+#hp.mollview(median_map)
+#plt.show()

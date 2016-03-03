@@ -48,7 +48,8 @@ for i in np.arange(hp.nside2npix(nside)):
     if np.size(data) > 0:
         for key in ['R','G','B']:
             sky_maps['median'+key][i] = np.median(data[key][~np.isnan(data[key])])
-            sky_maps['std'+key][i] = robustRMS(data[key][~np.isnan(data[key])])
+            if np.size(data[key][~np.isnan(data[key])]) > 3:
+                sky_maps['std'+key][i] = robustRMS(data[key][~np.isnan(data[key])])
         sky_maps['numberR'][i] = np.size(data['R'][~np.isnan(data[key])])
 
 print 'Finished generating map'

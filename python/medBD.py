@@ -48,9 +48,9 @@ def medDB(where_clause=None, full_select = None, dtypes=None):
 
     return data
 
-def single_frame(mjd, filter_frame='R', nside=32):
-    result = medDB(where_clause = 'mjd = %f' % mjd)
+def single_frame(mjd, filter_name='R',  nside=32):
+    result = medDB(where_clause = 'mjd = %f' % (mjd))
     hpmap = np.zeros(hp.nside2npix(nside), dtype=float)+hp.UNSEEN
-    hpmap[result['hpindex']] = result[filter_frame]
+    hpmap[result['hpindex']] = result[filter_name]
 
     return hpmap

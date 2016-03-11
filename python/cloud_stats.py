@@ -4,17 +4,21 @@ from medBD import medDB, single_frame
 from lsst.sims.utils import Site
 import ephem
 import lsst.sims.skybrightness as sb
+from scipy.optimize import curve_fit
 
 def robustRMS(arr):
     iqr = np.percentile(arr,75)-np.percentile(arr,25)
     rms = iqr/1.349 #approximation
     return rms
 
-def two_comp_model(x,map1=None,map2=None):
+def two_comp_model(x, a, b):
     """
     Function to generate the expected sky
+
+    x : np.array
+      two arrays with the maps to be scaled
     """
-    result = x[0]*map1+x[1]*map2
+    result = a*x[0]+b*x[1]
     return result
 
 
@@ -29,9 +33,26 @@ def residMap(sky_frame, median_map, sm, moon_mask=10.):
     """
 
     # build a decent mask.
+    good = np.where((~np.isnan(sm)) & (sky_frame != hp.UNSEEN) & (median_map != hp.UNSEEN)
+                    & (~np.isnan(median_map)))
 
     # Expect the total flux to be
     # a*median_map_flux + b*skyModel_flux
+
+    median_map_flux = 10.**(-0.8*median_map[good])
+    skyModel_flux = 10.**(-0.8*sm[good])
+    sky_frame_flux = 10.**(-0.8*sky_frame[good])
+
+    p0 = [1., np.median(sky_frame_flux/skyModel_flux)]
+
+    best_fit, pcov = curve_fit(two_comp_model, [median_map_flux, skyModel_flux],
+                               sky_frame_flux, p0=p0)
+
+    flux_resid = np.zeros(sky_frame.shape, dtype=float)
+    flux_resid[good] = -2.5*np.log10( sky_frame_flux/two_comp_model([median_map_flux,
+                                                                     skyModel_flux],*best_fit))
+
+    return flux_resid
 
 
 
@@ -64,25 +85,25 @@ frame_stats = np.zeros(umjd.size, dtype=zip(names,types))
 
 am_limit = 10.
 outlier_thresh = 3.
-for i in np.arange(0,np.size(umjd), 20):
+for i in [200]:# np.arange(0,np.size(umjd), 20):
 
     mjd = umjd[i]
+    frame = single_frame(mjd, filter_name=filter_name)
+    sm.setRaDecMjd(ra,dec,mjd)
     # use the previous exposure as a template, unless there's a big gap
     if mjd - umjd[i-1] < 0.0009:
         mjd_template = umjd[i-1]
-        frame = single_frame(mjd, filter_name=filter_name)
         template_frame = single_frame(mjd_template, filter_name=filter_name)
-
-        sm.setRaDecMjd(ra,dec,mjd)
-
         good = np.where( (frame != hp.UNSEEN) & (template_frame != hp.UNSEEN)
                          & (sm.airmass >= 1.) & (sm.airmass <= am_limit) &
                          (~np.isnan(frame)) & (~np.isnan(template_frame)))
-
-        #mags = sm.returnMags()
 
         diff = frame[good] - template_frame[good]
         frame_stats['median_diff'][i] = np.median(diff)
         frame_stats['rrms'][i] = robustRMS(diff)
         outliers = np.where(np.abs(diff) > outlier_thresh *frame_stats['rrms'][i])
         frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff))
+
+
+    model_mags = sm.returnMags()
+    resid = residMap(frame, mm['median'+filter_name], model_mags[:,3]) #model_mags['r'])

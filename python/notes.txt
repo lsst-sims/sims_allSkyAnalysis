@@ -1,0 +1,3 @@
+Grabbing Michael's database from:
+https://lsst-web.ncsa.illinois.edu/~coughlin/git-repo/mediansql/
+

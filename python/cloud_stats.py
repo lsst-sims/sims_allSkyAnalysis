@@ -1,12 +1,14 @@
 import numpy as np
 import healpy as hp
 from medBD import medDB, single_frame
-from lsst.sims.utils import Site, haversine
-import ephem
+from lsst.sims.utils import haversine
 import lsst.sims.skybrightness as sb
 from scipy.optimize import curve_fit
+import sys
 
 def robustRMS(arr):
+    if np.size(arr) == 0:
+        return 0
     iqr = np.percentile(arr,75)-np.percentile(arr,25)
     rms = iqr/1.349 #approximation
     return rms
@@ -34,7 +36,7 @@ def residMap(sky_frame, median_map, sm, moon_mask=10.):
 
     # build a decent mask.
     good = np.where((~np.isnan(sm)) & (sky_frame != hp.UNSEEN) & (median_map != hp.UNSEEN)
-                    & (~np.isnan(median_map)))
+                    & (~np.isnan(median_map) & (~np.isinf(median_map))))
 
     # Expect the total flux to be
     # a*median_map_flux + b*skyModel_flux
@@ -43,15 +45,17 @@ def residMap(sky_frame, median_map, sm, moon_mask=10.):
     skyModel_flux = 10.**(-0.8*sm[good])
     sky_frame_flux = 10.**(-0.8*sky_frame[good])
 
-    p0 = [1., np.median(sky_frame_flux/skyModel_flux)]
-
-    best_fit, pcov = curve_fit(two_comp_model, [median_map_flux, skyModel_flux],
-                               sky_frame_flux, p0=p0)
-
+    p0 = np.array([1., np.median(sky_frame_flux/skyModel_flux)])
     flux_resid = np.zeros(sky_frame.size, dtype=float)+hp.UNSEEN
-    flux_resid[good] = -2.5*np.log10( sky_frame_flux/two_comp_model([median_map_flux,
-                                                                     skyModel_flux],*best_fit))
+    try:
+        best_fit, pcov = curve_fit(two_comp_model, [median_map_flux, skyModel_flux],
+                                   sky_frame_flux, p0=p0)
+        flux_resid[good] = -2.5*np.log10( sky_frame_flux/two_comp_model([median_map_flux,
+                                                                        skyModel_flux],*best_fit))
+    except:
+        best_fit = p0*0
 
+    
     return flux_resid, best_fit
 
 
@@ -83,20 +87,29 @@ names = ['median_diff', 'rrms', 'frac_outliers']
 types = [float]*3
 frame_stats = np.zeros(umjd.size, dtype=zip(names,types))
 model_stats = np.zeros(umjd.size, dtype=zip(names,types))
-am_limit = 3.
+moon_alts = np.zeros(umjd.size, dtype=float)
+sun_alts = np.zeros(umjd.size, dtype=float)
+am_limit = 10.
 outlier_thresh = 3.
 moonLimit = 30. # Degrees
 
-for i in np.arange(0,np.size(umjd), 200):
+maxj = np.size(umjd)
+
+for i in np.arange(0, maxj, 1):
+
+    progress = i/float(maxj)*100
+    text = "\rprogress = %.1f%%"%progress
+    sys.stdout.write(text)
+    sys.stdout.flush()
 
     mjd = umjd[i]
     frame = single_frame(mjd, filter_name=filter_name)
     sm.setRaDecMjd(ra,dec,mjd)
-
+    moon_alts[i] += sm.moonAlt
+    sun_alts[i] += sm.sunAlt
     # mask out anything too close to the moon
     dist2moon = haversine(sm.azs, sm.alts, sm.moonAz, sm.moonAlt)
     frame[np.where(dist2moon < np.radians(moonLimit))] = hp.UNSEEN
-
 
     # use the previous exposure as a template, unless there's a big gap
     if mjd - umjd[i-1] < 0.0009:
@@ -115,9 +128,16 @@ for i in np.arange(0,np.size(umjd), 200):
 
 
     model_mags = sm.returnMags()
-    resid,fit_params = residMap(frame, mm['median'+filter_name], model_mags[:,3]) #model_mags['r'])
-    unmasked = np.where(resid != hp.UNSEEN)
-    model_stats['median_diff'][i] = np.median(resid[unmasked])
-    model_stats['rrms'][i] = robustRMS(resid[unmasked])
-    outliers = np.where(np.abs(resid[unmasked]) > outlier_thresh *model_stats['rrms'][i])
-    model_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(unmasked[0]))
+    resid,fit_params = residMap(frame, mm['median'+filter_name], model_mags['r'])
+    if np.max(np.abs(fit_params) != 0):
+        unmasked = np.where(resid != hp.UNSEEN)
+        if np.size(unmasked[0]) > 1:
+            model_stats['median_diff'][i] = np.median(resid[unmasked])
+            model_stats['rrms'][i] = robustRMS(resid[unmasked])
+            outliers = np.where(np.abs(resid[unmasked]) > outlier_thresh *model_stats['rrms'][i])
+            model_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(unmasked[0]))
+
+
+# Save the output for later
+np.savez('cloud_stats.npz', model_stats=model_stats, frame_stats=frame_stats, 
+         moon_alts=moon_alts, sun_alts=sun_alts)

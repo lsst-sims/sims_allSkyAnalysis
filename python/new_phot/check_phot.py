@@ -10,6 +10,7 @@ from astropy import units as u
 
 
 def readAndSave():
+    # OK, these are obviously not the actual values...
     names = ['mjd','RA','dec','HA','dunno','HAcalc','Decalc','dAngle','Azi','Alt','ompix','xcalc','ycalc','r','theta','<dx>','<dy>','resid']
     types = [float]*len(names)
 
@@ -62,26 +63,44 @@ if __name__ == '__main__':
 
     starIDs = np.zeros(phot.size, dtype=int)-666
     # Array to say if the star has matched multiple times
-    multiFlag = np.zeros(phot.size, dtype=bool)
-
-
+    multiFlag = np.zeros(phot.size, dtype=int)
 
     radius = 300./3600. # return everything within 300 arcsec?
     x0, y0, z0 = (1, 0, 0)
     x1, y1, z1 = treexyz(np.radians(radius), 0)
     rad = np.sqrt((x1-x0)**2+(y1-y0)**2+(z1-z0)**2)
 
+    # Match everything to one of the frames with lots of stars
     good = np.where(phot['mjd'] == goodMJD)
     onID = 1
     for i, blah in enumerate(phot[good]):
-        indices = tree.query_ball_point((x[i], y[i], z[i]), rad)
-        multiFlag[np.where(starIDs[indices] != -666)] = True
+        indices = np.array(tree.query_ball_point((x[i], y[i], z[i]), rad))
+        alreadyIDd = np.where(starIDs[indices] != -666)[0]
+        multiFlag[indices[alreadyIDd]] += 1
         starIDs[indices] = onID
         onID += 1
 
+    # Now loop through anything that doesn't have an ID
+    while -666 in starIDs:
+        still_zero = np.where(starIDs == -666)[0].min()
+        indices = np.array(tree.query_ball_point((x[still_zero], y[still_zero], z[still_zero]), rad))
+        alreadyIDd = np.where(starIDs[indices] != -666)[0]
+        multiFlag[indices[alreadyIDd]] += 1
+        starIDs[indices] = onID
+        onID += 1
 
+    isoStars = np.where(~multiFlag)[0]
 
+    print 'Number of unique stars = %i' % np.unique(starIDs[np.where(multiFlag ==0)[0]]).size
+    order = np.argsort(starIDs)
+    starIDs = starIDs[order]
+    multiFlag = multiFlag[order]
+    phot = phot[order]
+    ustars = np.unique(starIDs)
 
+    good = np.where(multiFlag == 0)
+    left = np.searchsorted(starIDs[good], ustars)
+    right = np.searchsorted(starIDs[good], ustars, side='right')
 
 
 

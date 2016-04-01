@@ -140,4 +140,4 @@ for i in np.arange(0, maxj, 1):
 
 # Save the output for later
 np.savez('cloud_stats.npz', model_stats=model_stats, frame_stats=frame_stats, 
-         moon_alts=moon_alts, sun_alts=sun_alts)
+         moon_alts=moon_alts, sun_alts=sun_alts, umjd=umjd)

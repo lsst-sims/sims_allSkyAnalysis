@@ -36,9 +36,9 @@ moon_alt = data['moon_alts'].copy()
 sun_alt = data['sun_alts'].copy()
 model_stats = data['model_stats'].copy()
 frame_stats = data['frame_stats'].copy()
-#umjd = data['umjd'].copy()
+umjd = data['umjd'].copy()
 data.close()
 
 
-umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
+#umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
 

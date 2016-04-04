@@ -124,7 +124,8 @@ for i in np.arange(0, maxj, 1):
         frame_stats['median_diff'][i] = np.median(diff[good])
         frame_stats['rrms'][i] = robustRMS(diff[good])
         outliers = np.where(np.abs(diff[good]) > outlier_thresh *frame_stats['rrms'][i])
-        frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff[good]))
+        if np.size(diff[good]) != 0:
+            frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff[good]))
 
 
     model_mags = sm.returnMags()

@@ -60,85 +60,86 @@ def residMap(sky_frame, median_map, sm, moon_mask=10.):
 
 
 
+if __name__ == '__main__':
 
-# Loop through each frame, maybe fit a scaled background frame and a background model? Make some threshold and
-# say what fraction of the sky is outside the threshold?
+    # Loop through each frame, maybe fit a scaled background frame and a background model? Make some threshold and
+    # say what fraction of the sky is outside the threshold?
 
-# Not sure what to do about airmass.  it looks like there's a good correlation within a night, but not clear if it varies night-to-night
+    # Not sure what to do about airmass.  it looks like there's a good correlation within a night, but not clear if it varies night-to-night
 
-# Load up the median sky map
-mm = np.load('sky_maps.npz')
-mm = mm['sky_maps'].copy()
+    # Load up the median sky map
+    mm = np.load('sky_maps.npz')
+    mm = mm['sky_maps'].copy()
 
-# everything is in nside = 32
-nside = 32
+    # everything is in nside = 32
+    nside = 32
 
-umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
+    umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
 
-filter_name = 'R'
+    filter_name = 'R'
 
-# Load up the sky templates, but not with the components that should be in the median background.
-sm = sb.SkyModel(mags=True) #sb.SkyModel(mags=True, airglow=False, mergedSpec=False)
+    # Load up the sky templates, but not with the components that should be in the median background.
+    sm = sb.SkyModel(mags=True) #sb.SkyModel(mags=True, airglow=False, mergedSpec=False)
 
-dec, ra = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
-dec = np.pi/2 - dec
+    dec, ra = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
+    dec = np.pi/2 - dec
 
-names = ['median_diff', 'rrms', 'frac_outliers']
-types = [float]*3
-frame_stats = np.zeros(umjd.size, dtype=zip(names,types))
-model_stats = np.zeros(umjd.size, dtype=zip(names,types))
-moon_alts = np.zeros(umjd.size, dtype=float)
-sun_alts = np.zeros(umjd.size, dtype=float)
-am_limit = 10.
-outlier_thresh = 3.
-moonLimit = 30. # Degrees
+    names = ['median_diff', 'rrms', 'frac_outliers']
+    types = [float]*3
+    frame_stats = np.zeros(umjd.size, dtype=zip(names,types))
+    model_stats = np.zeros(umjd.size, dtype=zip(names,types))
+    moon_alts = np.zeros(umjd.size, dtype=float)
+    sun_alts = np.zeros(umjd.size, dtype=float)
+    am_limit = 10.
+    outlier_thresh = 3.
+    moonLimit = 30. # Degrees
 
-maxj = np.size(umjd)
+    maxj = np.size(umjd)
 
-for i in np.arange(0, maxj, 1):
+    for i in np.arange(0, maxj, 1):
 
-    progress = i/float(maxj)*100
-    text = "\rprogress = %.1f%%"%progress
-    sys.stdout.write(text)
-    sys.stdout.flush()
+        progress = i/float(maxj)*100
+        text = "\rprogress = %.1f%%"%progress
+        sys.stdout.write(text)
+        sys.stdout.flush()
 
-    mjd = umjd[i]
-    frame = single_frame(mjd, filter_name=filter_name)
-    sm.setRaDecMjd(ra,dec,mjd)
-    moon_alts[i] += sm.moonAlt
-    sun_alts[i] += sm.sunAlt
-    # mask out anything too close to the moon
-    dist2moon = haversine(sm.azs, sm.alts, sm.moonAz, sm.moonAlt)
-    frame[np.where(dist2moon < np.radians(moonLimit))] = hp.UNSEEN
+        mjd = umjd[i]
+        frame = single_frame(mjd, filter_name=filter_name)
+        sm.setRaDecMjd(ra,dec,mjd)
+        moon_alts[i] += sm.moonAlt
+        sun_alts[i] += sm.sunAlt
+        # mask out anything too close to the moon
+        dist2moon = haversine(sm.azs, sm.alts, sm.moonAz, sm.moonAlt)
+        frame[np.where(dist2moon < np.radians(moonLimit))] = hp.UNSEEN
 
-    # use the previous exposure as a template, unless there's a big gap
-    if mjd - umjd[i-1] < 0.0009:
-        mjd_template = umjd[i-1]
-        template_frame = single_frame(mjd_template, filter_name=filter_name)
-        good = np.where( (frame != hp.UNSEEN) & (template_frame != hp.UNSEEN)
-                         & (sm.airmass >= 1.) & (sm.airmass <= am_limit) &
-                         (~np.isnan(frame)) & (~np.isnan(template_frame)))
+        # use the previous exposure as a template, unless there's a big gap
+        if mjd - umjd[i-1] < 0.0009:
+            mjd_template = umjd[i-1]
+            template_frame = single_frame(mjd_template, filter_name=filter_name)
+            good = np.where( (frame != hp.UNSEEN) & (template_frame != hp.UNSEEN)
+                             & (sm.airmass >= 1.) & (sm.airmass <= am_limit) &
+                             (~np.isnan(frame)) & (~np.isnan(template_frame)))
 
-        diff = np.zeros(frame.size, dtype=float) + hp.UNSEEN
-        diff[good] = frame[good] - template_frame[good]
-        frame_stats['median_diff'][i] = np.median(diff[good])
-        frame_stats['rrms'][i] = robustRMS(diff[good])
-        outliers = np.where(np.abs(diff[good]) > outlier_thresh *frame_stats['rrms'][i])
-        if np.size(diff[good]) != 0:
-            frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff[good]))
-
-
-    model_mags = sm.returnMags()
-    resid,fit_params = residMap(frame, mm['median'+filter_name], model_mags['r'])
-    if np.max(np.abs(fit_params) != 0):
-        unmasked = np.where(resid != hp.UNSEEN)
-        if np.size(unmasked[0]) > 1:
-            model_stats['median_diff'][i] = np.median(resid[unmasked])
-            model_stats['rrms'][i] = robustRMS(resid[unmasked])
-            outliers = np.where(np.abs(resid[unmasked]) > outlier_thresh *model_stats['rrms'][i])
-            model_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(unmasked[0]))
+            diff = np.zeros(frame.size, dtype=float) + hp.UNSEEN
+            diff[good] = frame[good] - template_frame[good]
+            frame_stats['median_diff'][i] = np.median(diff[good])
+            frame_stats['rrms'][i] = robustRMS(diff[good])
+            outliers = np.where(np.abs(diff[good]) > outlier_thresh *frame_stats['rrms'][i])
+            if np.size(diff[good]) != 0:
+                frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff[good]))
 
 
-# Save the output for later
-np.savez('cloud_stats.npz', model_stats=model_stats, frame_stats=frame_stats, 
-         moon_alts=moon_alts, sun_alts=sun_alts, umjd=umjd)
+        model_mags = sm.returnMags()
+        resid,fit_params = residMap(frame, mm['median'+filter_name], model_mags['r'])
+        if np.max(np.abs(fit_params) != 0):
+            unmasked = np.where(resid != hp.UNSEEN)
+            if np.size(unmasked[0]) > 1:
+                model_stats['median_diff'][i] = np.median(resid[unmasked])
+                model_stats['rrms'][i] = robustRMS(resid[unmasked])
+                outliers = np.where(np.abs(resid[unmasked]) > outlier_thresh *model_stats['rrms'][i])
+                model_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(unmasked[0]))
+
+
+    # Save the output for later
+    np.savez('cloud_stats.npz', model_stats=model_stats, frame_stats=frame_stats, 
+             moon_alts=moon_alts, sun_alts=sun_alts, umjd=umjd)

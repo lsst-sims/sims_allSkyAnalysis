@@ -1,7 +1,7 @@
 import numpy as np
 import healpy as hp
 import matplotlib.pylab as plt
-from medBD import medDB, single_frame
+from medBD import single_frame
 from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
 
@@ -20,6 +20,10 @@ outdir = 'MoviePlots'
 data = np.load('cloud_stats.npz')
 umjd = data['umjd'].copy()
 data.close()
+
+RdBu = plt.get_cmap('RdBu')
+RdBu.set_bad('gray')
+RdBu.set_under('w')
 
 
 previous = single_frame(umjd[nstart-1])
@@ -42,9 +46,11 @@ for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
 	diff[out] = hp.UNSEEN
 	frame[out] = hp.UNSEEN
 	# maybe rotate based on LMST and latitude?
-	hp.mollview(frame, sub=(1,2,1), rot=(lmst, site.latitude,0))
-	hp.mollview(diff, sub=(1,2,2), min=-0.5, max=0.5,  rot=(lmst, site.latitude,0))
-	fig.savefig('%s/%i_.png' % (outdir, i))
+	hp.mollview(frame, sub=(1,2,1), rot=(lmst, site.latitude,0), min=-10, max=-2.5, unit='mag', 
+	            title='%.2f' % mjd)
+	hp.mollview(diff, sub=(1,2,2), min=-0.5, max=0.5,  rot=(lmst, site.latitude,0), 
+	            cmap=RdBu, unit='(mag)', title='')
+	fig.savefig('%s/%03i_.png' % (outdir, i))
 	plt.close(fig)
 	
 

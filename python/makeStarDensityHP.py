@@ -2,11 +2,9 @@ import numpy as np
 import lsst.sims.skybrightness as sb
 import healpy as hp
 from lsst.sims.utils import healbin
-import sys
 
 
-
-nside = 4
+nside = 8
 filt = 'R'
 
 density_maps =[]
@@ -21,7 +19,7 @@ maxID,mjd = sb.allSkyDB(0,'select max(ID) from dates where mjd > %i;' % minMJD, 
 # Temp pad for testing
 # maxID = minID+100
 
-outfile = open('starDensity.dat','w')
+outfile = open('starDensity_%i.dat' % nside,'w')
 
 print >>outfile, '## mjd, healpixID (nside=%i), Nstars' % nside
 

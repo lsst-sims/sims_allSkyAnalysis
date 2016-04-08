@@ -8,12 +8,8 @@ from lsst.sims.utils import calcLmstLast, Site
 # Let's try making some simple movies to see what the frames and different images look like
 
 
-# Set up side-by-side axes
-
-# umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
-
-nframes = 30
-nstart = 500
+nframes = 300
+nstart = 5000
 
 outdir = 'MoviePlots'
 
@@ -31,6 +27,13 @@ nside = hp.npix2nside(previous.size)
 site = Site('LSST')
 dec, ra = hp.pix2ang(nside, np.arange(previous.size))
 dec = np.pi/2. - dec
+
+
+# Load up the stellar density
+# Arrg, the healpixed database doesn't overlap with the stellar database.
+# starmap = starD()
+
+
 
 for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
 
@@ -50,8 +53,15 @@ for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
 	            title='%.2f' % mjd)
 	hp.mollview(diff, sub=(1,2,2), min=-0.5, max=0.5,  rot=(lmst, site.latitude,0), 
 	            cmap=RdBu, unit='(mag)', title='')
+
+	#sm, sm_diff = starmap(mjd)
+	#hp.mollview(sm, sub=(2,2,3), rot=(lmst, site.latitude,0), unit='N stars', title='')
+	#hp.mollview(sm_diff, sub=(2,2,4), rot=(lmst, site.latitude,0), unit='N stars', title='')
+
 	fig.savefig('%s/%03i_.png' % (outdir, i))
 	plt.close(fig)
 	
 
-# then just call ffmpeg like here: http://user.astro.columbia.edu/~robyn/ffmpeghowto.html
+# then just call ffmpeg like here: https://trac.ffmpeg.org/wiki/Create%20a%20video%20slideshow%20from%20images
+# open with vLC
+#  ffmpeg -framerate 2 -pattern_type glob -i '*.png'  out.mp4

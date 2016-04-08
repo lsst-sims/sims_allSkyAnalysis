@@ -4,11 +4,12 @@ import healpy as hp
 from lsst.sims.utils import healbin
 
 
-nside = 8
+nside = 4
 filt = 'R'
 
-density_maps =[]
 mjds = []
+hpids = []
+nstars = []
 
 # Crop off junky early things
 minMJD = 56900
@@ -19,11 +20,6 @@ maxID,mjd = sb.allSkyDB(0,'select max(ID) from dates where mjd > %i;' % minMJD, 
 # Temp pad for testing
 # maxID = minID+100
 
-outfile = open('starDensity_%i.dat' % nside,'w')
-
-print >>outfile, '## mjd, healpixID (nside=%i), Nstars' % nside
-
-
 full_range = float(maxID - minID)
 for i,dateID in enumerate(np.arange(minID.max(),maxID.max())):
 	print i, mjd
@@ -31,13 +27,15 @@ for i,dateID in enumerate(np.arange(minID.max(),maxID.max())):
 	starmap = healbin(data['ra'], data['dec'], data['dec'], 
 	                  nside=nside, reduceFunc=np.size)
 	good = np.where(starmap != hp.UNSEEN)[0]
-	for i in good:
-		print >>outfile, '%f, %i, %i' % (mjd, i, starmap[i])
+	mjds.extend([mjd]*good.size)
+	hpids.extend(good.tolist())
+	nstars.extend(starmap[good].tolist())
+	
 
-	#progress = i/full_range*100
-	#text = "\rprogress = %.3f%%"%progress
-	#sys.stdout.write(text)
-	#sys.stdout.flush()
 	
 print 'ack'
-outfile.close()
+names = ['mjd', 'hpid', 'nstars']
+types = [float, int, int]
+result = np.array(zip(mjds, hpids, nstars), dtype=zip(names, types))
+
+np.savez('starDensity_nside%i.npz' % nside, starmap=result, nside=nside)

@@ -1,5 +1,6 @@
 import numpy as np
 import healpy as hp
+import matplotlib.pylab as plt
 
 # read in the stellar density maps and be able to return hp maps as a function of MJD
 
@@ -52,3 +53,17 @@ class starD(object):
 		mask = np.where((frame_now == hp.UNSEEN) | (self.median_im == hp.UNSEEN))
 		diff[mask] = hp.UNSEEN
 		return frame_now, diff
+
+if __name__ == '__main__':
+
+	for nside in [4,8]:
+		s1 = starD(nside=nside)
+		fig = plt.figure(1)
+		medim = s1.median_im
+		good = np.where(medim != hp.UNSEEN)
+		totalStars = np.sum(s1.median_im[good])
+		hp.mollview(s1.median_im, fig=1, 
+		            title='90th percentile', unit='# of stars (%i total)' % totalStars)
+		fig.savefig('starDensity_%i.png' % nside)
+		plt.close(fig)
+

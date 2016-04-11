@@ -5,19 +5,21 @@ import matplotlib.pylab as plt
 from medBD import single_frame
 from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
+from utils import robustRMS
 
 # Let's try making some simple movies to see what the frames and different images look like
 
 
 if __name__ == '__main__':
 
-	nframes = 1000
+	nframes = 400
 	nstart = 500
 
 	outdir = 'MoviePlots'
 
 	data = np.load('cloud_stats.npz')
 	umjd = data['umjd'].copy()
+	frame_stats = data['frame_stats'].copy()
 	data.close()
 
 	RdBu = plt.get_cmap('RdBu')
@@ -40,9 +42,11 @@ if __name__ == '__main__':
 	# Arrg, the healpixed database doesn't overlap with the stellar database.
 	# starmap = starD()
 
+	outlier_mag = 0.1
+	alt_limit = np.radians(23.) 
 
-
-	for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
+	for i,(mjd, stats) in enumerate(zip(umjd[nstart:nstart+nframes], 
+	                                    frame_stats[nstart:nstart+nframes])):
 
 		lmst, last = calcLmstLast(mjd, site.longitude_rad)
 		lmst = lmst/12.*180.
@@ -52,14 +56,20 @@ if __name__ == '__main__':
 		# Need to crop off high airmass pixels. use stupid_fast
 		diff = frame - previous
 		previous = frame.copy()
-		out = np.where((frame == hp.UNSEEN) | (previous == hp.UNSEEN) | (alt < np.radians(10.)))
+		out = np.where((np.isnan(frame)) | (np.isnan(previous)) | (frame == hp.UNSEEN) | 
+		               (previous == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff[out] = hp.UNSEEN
 		frame[out] = hp.UNSEEN
 		# maybe rotate based on LMST and latitude?
+		gdiff = np.where( (diff != hp.UNSEEN) & (np.isnan(diff) == False))[0]
+		rms = robustRMS(diff[gdiff])
+		nout = np.size(np.where( (np.abs(diff[gdiff]) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
+		nout = nout/float(np.size(gdiff))*100
 		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), min=-7, max=-2.5, unit='mag', 
 		            title='%.2f' % mjd)
 		hp.mollview(diff, sub=(2,2,2), min=-0.25, max=0.25,  rot=(lmst, site.latitude,0), 
-		            cmap=RdBu, unit='(mag)', title='')
+		            cmap=RdBu, unit='(mag)', 
+		            title=r'$\sigma$=%.2f, Nout=%i' % (rms, nout))
 		diff = frame - median_r
 		out = np.where((frame == hp.UNSEEN) | (median_r == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff[out] = hp.UNSEEN
@@ -70,7 +80,7 @@ if __name__ == '__main__':
 		#hp.mollview(sm, sub=(2,2,3), rot=(lmst, site.latitude,0), unit='N stars', title='')
 		#hp.mollview(sm_diff, sub=(2,2,4), rot=(lmst, site.latitude,0), unit='N stars', title='')
 
-		fig.savefig('%s/%03i_.png' % (outdir, i))
+		fig.savefig('%s/%04i_.png' % (outdir, i))
 		plt.close(fig)
 		
 

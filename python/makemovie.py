@@ -2,7 +2,7 @@
 import numpy as np
 import healpy as hp
 import matplotlib.pylab as plt
-from medBD import single_frame
+from medDB import single_frame
 from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
 from utils import robustRMS
@@ -12,8 +12,7 @@ from utils import robustRMS
 
 if __name__ == '__main__':
 
-	nframes = 5000
-	nstart = 500
+	
 
 	outdir = 'MoviePlots'
 
@@ -26,6 +25,9 @@ if __name__ == '__main__':
 	RdBu.set_bad('gray')
 	RdBu.set_under('w')
 
+	nframes = umjd.size -1 
+	print 'making %i frames' % nframes
+	nstart = 1
 
 	previous = single_frame(umjd[nstart-1])
 	nside = hp.npix2nside(previous.size)
@@ -36,6 +38,9 @@ if __name__ == '__main__':
 	median_map = np.load('sky_maps.npz')
 	median_r = median_map['sky_maps']['medianR'].copy()
 	median_map.close()
+
+
+
 
 
 	# Load up the stellar density
@@ -72,13 +77,14 @@ if __name__ == '__main__':
 		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), min=-7, max=-2.5, unit='mag', 
 		            title='%.2f' % mjd)
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
-		            cmap=RdBu, unit='(flux)', 
+		            cmap=RdBu, unit='(frame-prev)/prev (flux)', 
 		            title=r'$\sigma$=%.2f, percent out=%i' % (rms, nout))
 		diff2 = (10.**(-.4*frame)/10.**(-.4*median_r)) -1.
 		out = np.where((frame == hp.UNSEEN) | (median_r == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff2[out] = hp.UNSEEN
+		good = np.where(diff2 != hp.UNSEEN)
 		hp.mollview(diff2, sub=(2,2,3), min=-2, max=2, rot=(lmst, site.latitude,0), 
-		            cmap=RdBu, unit='(flux)', title='')
+		            cmap=RdBu, unit='(frame-median)/median (flux)', title='median = %.1f' % np.median(diff2[good]))
 		diff_correlation = (diff*diff2)**2
 		out = np.where((diff == hp.UNSEEN) | (diff2 == hp.UNSEEN))
 		diff[out] = hp.UNSEEN

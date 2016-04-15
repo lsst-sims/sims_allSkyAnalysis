@@ -70,6 +70,8 @@ if __name__ == '__main__':
     # Load up the median sky map
     mm = np.load('sky_maps.npz')
     mm = mm['sky_maps'].copy()
+    
+
 
     # everything is in nside = 32
     nside = 32
@@ -84,13 +86,13 @@ if __name__ == '__main__':
     dec, ra = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
     dec = np.pi/2 - dec
 
-    names = ['median_diff', 'rrms', 'frac_outliers']
-    types = [float]*3
+    names = ['median_diff', 'rrms', 'frac_outliers', 'frame_minus_median']
+    types = [float]*4
     frame_stats = np.zeros(umjd.size, dtype=zip(names,types))
     model_stats = np.zeros(umjd.size, dtype=zip(names,types))
     moon_alts = np.zeros(umjd.size, dtype=float)
     sun_alts = np.zeros(umjd.size, dtype=float)
-    am_limit = 10.
+    am_limit = 2.5
     outlier_thresh = 3.
     moonLimit = 30. # Degrees
 
@@ -113,7 +115,7 @@ if __name__ == '__main__':
         frame[np.where(dist2moon < np.radians(moonLimit))] = hp.UNSEEN
 
         # use the previous exposure as a template, unless there's a big gap
-        if mjd - umjd[i-1] < 0.0009:
+        if (mjd - umjd[i-1] < 0.0009)[0]:
             mjd_template = umjd[i-1]
             template_frame = single_frame(mjd_template, filter_name=filter_name)
             good = np.where( (frame != hp.UNSEEN) & (template_frame != hp.UNSEEN)
@@ -121,13 +123,14 @@ if __name__ == '__main__':
                              (~np.isnan(frame)) & (~np.isnan(template_frame)))
 
             diff = np.zeros(frame.size, dtype=float) + hp.UNSEEN
-            diff[good] = frame[good] - template_frame[good]
+            diff[good] = (10.**(-.4*frame[good]) - 1.) / 10.**(-.4*template_frame[good])
             frame_stats['median_diff'][i] = np.median(diff[good])
             frame_stats['rrms'][i] = robustRMS(diff[good])
-            outliers = np.where(np.abs(diff[good]) > outlier_thresh *frame_stats['rrms'][i])
+            outliers = np.where(np.abs(diff[good] - np.median(diff[good])) > outlier_thresh *frame_stats['rrms'][i])
             if np.size(diff[good]) != 0:
                 frame_stats['frac_outliers'][i] = np.size(outliers[0])/float(np.size(diff[good]))
-
+                frame_stats['frame_minus_median'][i] = np.median( ((diff[good]) - 1) /  10.**(-.4*mm['medianR'][good]))
+                
 
         model_mags = sm.returnMags()
         resid,fit_params = residMap(frame, mm['median'+filter_name], model_mags['r'])

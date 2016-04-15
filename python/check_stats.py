@@ -1,6 +1,6 @@
 import numpy as np
 import healpy as hp
-from medBD import medDB, single_frame
+from medDB import medDB, single_frame
 from lsst.sims.utils import haversine
 import lsst.sims.skybrightness as sb
 

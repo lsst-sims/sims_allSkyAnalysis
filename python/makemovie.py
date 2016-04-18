@@ -12,12 +12,15 @@ from utils import robustRMS
 
 if __name__ == '__main__':
 
+	cannonFilter = 'G'
 	
 
 	outdir = 'MoviePlots'
 
 	data = np.load('cloud_stats.npz')
 	umjd = data['umjd'].copy()
+	sun_alt = data['sun_alts'].copy()
+	moon_alt = data['moon_alts']
 	frame_stats = data['frame_stats'].copy()
 	data.close()
 
@@ -36,11 +39,9 @@ if __name__ == '__main__':
 	dec = np.pi/2. - dec
 
 	median_map = np.load('sky_maps.npz')
-	median_r = median_map['sky_maps']['medianR'].copy()
+	median_filt = median_map['sky_maps']['median%s' % cannonFilter].copy()
 	median_map.close()
-
-
-
+	median_filt[np.isnan(median_filt)] = hp.UNSEEN
 
 
 	# Load up the stellar density
@@ -50,17 +51,17 @@ if __name__ == '__main__':
 	outlier_mag = 0.1
 	alt_limit = np.radians(23.) 
 	fracs_out = []
-	med_diff1 = []
-	med_diff2 = []
+	med_diff_frame = []
+	rms_diff_frame = []
+	med_diff_med = []
 
-	for i,(mjd, stats) in enumerate(zip(umjd[nstart:nstart+nframes], 
-	                                    frame_stats[nstart:nstart+nframes])):
+	for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
 
 		lmst, last = calcLmstLast(mjd, site.longitude_rad)
 		lmst = lmst/12.*180.
 		alt, az = stupidFast_RaDec2AltAz(ra, dec, site.latitude_rad, site.longitude_rad, mjd)
 		fig = plt.figure()
-		frame = single_frame(mjd)
+		frame = single_frame(mjd, filter_name=cannonFilter)
 		# Need to crop off high airmass pixels. use stupid_fast
 		diff = (10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
 		previous = frame.copy()
@@ -71,6 +72,9 @@ if __name__ == '__main__':
 		# maybe rotate based on LMST and latitude?
 		gdiff = np.where( (diff != hp.UNSEEN) & (np.isnan(diff) == False))[0]
 		rms = robustRMS(diff[gdiff])
+		rms_diff_frame.append(rms)
+		med_diff_frame.append(np.median(diff[gdiff]))
+
 		nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
 		nout = nout/float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
 		fracs_out.append(nout)
@@ -79,28 +83,34 @@ if __name__ == '__main__':
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-prev)/prev (flux)', 
 		            title=r'$\sigma$=%.2f, percent out=%i' % (rms, nout))
-		diff2 = (10.**(-.4*frame)/10.**(-.4*median_r)) -1.
-		out = np.where((frame == hp.UNSEEN) | (median_r == hp.UNSEEN) | (alt < np.radians(10.)))
+		diff2 = (10.**(-.4*frame)/10.**(-.4*median_filt)) -1.
+		out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff2[out] = hp.UNSEEN
 		good = np.where(diff2 != hp.UNSEEN)
 		hp.mollview(diff2, sub=(2,2,3), min=-2, max=2, rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-median)/median (flux)', title='median = %.1f' % np.median(diff2[good]))
-		diff_correlation = (diff*diff2)**2
-		out = np.where((diff == hp.UNSEEN) | (diff2 == hp.UNSEEN))
-		diff[out] = hp.UNSEEN
-		diff2[out] = hp.UNSEEN
-		good = np.where(diff != hp.UNSEEN)
-		diff_correlation = ((diff-np.median(diff[good]))*(diff2-np.median(diff2[good])))**2
-		diff_correlation[out] = hp.UNSEEN
-		hp.mollview(diff_correlation, sub=(2,2,4), min=0, max=1, rot=(lmst, site.latitude,0), 
-		            unit='(power)', title='correlation')
+		med_diff_med.append(np.median(diff2[good]))
+
+		#diff_correlation = (diff*diff2)**2
+		#out = np.where((diff == hp.UNSEEN) | (diff2 == hp.UNSEEN))
+		#diff[out] = hp.UNSEEN
+		#diff2[out] = hp.UNSEEN
+		#good = np.where(diff != hp.UNSEEN)
+		#diff_correlation = ((diff-np.median(diff[good]))*(diff2-np.median(diff2[good])))**2
+		#diff_correlation[out] = hp.UNSEEN
+		#hp.mollview(diff_correlation, sub=(2,2,4), min=0, max=1, rot=(lmst, site.latitude,0), 
+		#            unit='(power)', title='correlation')
 		#sm, sm_diff = starmap(mjd)
 		#hp.mollview(sm, sub=(2,2,3), rot=(lmst, site.latitude,0), unit='N stars', title='')
 		#hp.mollview(sm_diff, sub=(2,2,4), rot=(lmst, site.latitude,0), unit='N stars', title='')
 
-		fig.savefig('%s/%04i_.png' % (outdir, i))
+		fig.savefig('%s/%05i_.png' % (outdir, i))
 		plt.close(fig)
 		
 	# then just call ffmpeg like here: https://trac.ffmpeg.org/wiki/Create%20a%20video%20slideshow%20from%20images
 	# open with vLC
 	#  ffmpeg -framerate 10 -pattern_type glob -i '*.png'  out.mp4
+
+	# Save the stats that came out
+	np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame, 
+	         moon_alt=moon_alt, sun_alt=sun_alt, umjd=umjd, fracs_out=fracs_out)

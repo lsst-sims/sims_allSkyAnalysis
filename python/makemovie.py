@@ -2,7 +2,7 @@
 import numpy as np
 import healpy as hp
 import matplotlib.pylab as plt
-from medDB import single_frame
+from medDB import single_frame, medDB
 from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
 from utils import robustRMS
@@ -17,18 +17,22 @@ if __name__ == '__main__':
 
 	outdir = 'MoviePlots'
 
-	data = np.load('cloud_stats.npz')
-	umjd = data['umjd'].copy()
-	sun_alt = data['sun_alts'].copy()
-	moon_alt = data['moon_alts']
-	frame_stats = data['frame_stats'].copy()
-	data.close()
+	#data = np.load('cloud_stats.npz')
+	#umjd = data['umjd'].copy()
+	#sun_alt = data['sun_alts'].copy()
+	#moon_alt = data['moon_alts']
+	#frame_stats = data['frame_stats'].copy()
+	#data.close()
+
+	umjd =  medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
 
 	RdBu = plt.get_cmap('RdBu')
 	RdBu.set_bad('gray')
 	RdBu.set_under('w')
 
 	nframes = umjd.size -1 
+	# XXXX
+	nframes = 100
 	print 'making %i frames' % nframes
 	nstart = 1
 
@@ -78,7 +82,7 @@ if __name__ == '__main__':
 		nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
 		nout = nout/float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
 		fracs_out.append(nout)
-		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), min=-7, max=-2.5, unit='mag', 
+		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
 		            title='%.2f' % mjd)
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-prev)/prev (flux)', 

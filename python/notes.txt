@@ -1,3 +1,6 @@
 Grabbing Michael's database from:
 https://lsst-web.ncsa.illinois.edu/~coughlin/git-repo/mediansql/
 
+putting the healpix databases in:
+/Users/yoachim/Scratch/allSkyCamera/Healpix_Binned
+

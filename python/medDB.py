@@ -29,13 +29,13 @@ def medDB(where_clause=None, full_select = None, dtypes=None):
     """
 
     if full_select is None:
-        query = 'select hpindex, M, R, G, B, airmass, mjd from medskybrightness where '+ where_clause+';'
+        query = 'select hpindex, R, G, B, airmass, mjd from medskybrightness where '+ where_clause+';'
     else:
         query = full_select
 
     if dtypes is None:
-        dtypes = [int, float, float, float, float, float,float]
-        names = ['hpindex', 'M', 'R', 'G', 'B', 'airmass', 'mjd']
+        dtypes = [int, float, float, float, float,float]
+        names = ['hpindex', 'R', 'G', 'B', 'airmass', 'mjd']
         dtypes = zip(names,dtypes)
 
     dbAddress = 'sqlite:///meddata.sqlite'

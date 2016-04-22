@@ -32,7 +32,7 @@ if __name__ == '__main__':
 
 	nframes = umjd.size -1 
 	# XXXX
-	nframes = 100
+	#nframes = 100
 	print 'making %i frames' % nframes
 	nstart = 1
 
@@ -75,12 +75,22 @@ if __name__ == '__main__':
 		frame[out] = hp.UNSEEN
 		# maybe rotate based on LMST and latitude?
 		gdiff = np.where( (diff != hp.UNSEEN) & (np.isnan(diff) == False))[0]
-		rms = robustRMS(diff[gdiff])
+		if np.size(gdiff) > 0:
+			rms = robustRMS(diff[gdiff])
+			median_value = np.median(diff[gdiff])
+			nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
+			nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
+			if nabove != 0:
+				nout = nout/nabove
+			else:
+				nout = -666
+		else:
+			rms = hp.UNSEEN
+			median_value = hp.UNSEEN
+			nout = -666
 		rms_diff_frame.append(rms)
-		med_diff_frame.append(np.median(diff[gdiff]))
+		med_diff_frame.append(median_value)
 
-		nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
-		nout = nout/float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
 		fracs_out.append(nout)
 		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
 		            title='%.2f' % mjd)

@@ -12,7 +12,7 @@ from utils import robustRMS
 
 if __name__ == '__main__':
 
-	cannonFilter = 'G'
+	cannonFilter = 'R'
 	
 
 	outdir = 'MoviePlots'
@@ -31,10 +31,10 @@ if __name__ == '__main__':
 	RdBu.set_under('w')
 
 	nframes = umjd.size -1 
-	# XXXX
-	#nframes = 100
+	
 	print 'making %i frames' % nframes
 	nstart = 1
+	
 
 	previous = single_frame(umjd[nstart-1])
 	nside = hp.npix2nside(previous.size)
@@ -67,7 +67,7 @@ if __name__ == '__main__':
 		fig = plt.figure()
 		frame = single_frame(mjd, filter_name=cannonFilter)
 		# Need to crop off high airmass pixels. use stupid_fast
-		diff = (10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
+		diff = frame / previous - 1. #(10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
 		previous = frame.copy()
 		out = np.where((np.isnan(frame)) | (np.isnan(previous)) | (frame == hp.UNSEEN) | 
 		               (previous == hp.UNSEEN) | (alt < np.radians(10.)))
@@ -93,9 +93,9 @@ if __name__ == '__main__':
 
 		fracs_out.append(nout)
 		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
-		            title='%.2f' % mjd)
+		            title='%.2f' % mjd, min=5., max=2000., norm='log')
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
-		            cmap=RdBu, unit='(frame-prev)/prev (flux)', 
+		            cmap=RdBu, unit='(frame-prev)/prev', 
 		            title=r'$\sigma$=%.2f, percent out=%i' % (rms, nout))
 		diff2 = (10.**(-.4*frame)/10.**(-.4*median_filt)) -1.
 		out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))

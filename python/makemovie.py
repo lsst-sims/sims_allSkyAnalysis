@@ -31,7 +31,7 @@ if __name__ == '__main__':
 	RdBu.set_under('w')
 
 	nframes = umjd.size -1 
-	
+
 	print 'making %i frames' % nframes
 	nstart = 1
 	
@@ -97,11 +97,11 @@ if __name__ == '__main__':
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-prev)/prev', 
 		            title=r'$\sigma$=%.2f, percent out=%i' % (rms, nout))
-		diff2 = (10.**(-.4*frame)/10.**(-.4*median_filt)) -1.
+		diff2 = (frame - median_filt)/median_filt 
 		out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff2[out] = hp.UNSEEN
 		good = np.where(diff2 != hp.UNSEEN)
-		hp.mollview(diff2, sub=(2,2,3), min=-2, max=2, rot=(lmst, site.latitude,0), 
+		hp.mollview(diff2, sub=(2,2,3), min=-0.3, max=0.3, rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-median)/median (flux)', title='median = %.1f' % np.median(diff2[good]))
 		med_diff_med.append(np.median(diff2[good]))
 

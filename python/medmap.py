@@ -1,5 +1,5 @@
 import numpy as np
-from medBD import medDB, single_frame
+from medDB import medDB
 import healpy as hp
 import matplotlib.pylab as plt
 from lsst.sims.utils import Site

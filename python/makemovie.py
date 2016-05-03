@@ -6,6 +6,7 @@ from medDB import single_frame, medDB
 from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
 from utils import robustRMS
+import sys
 
 # Let's try making some simple movies to see what the frames and different images look like
 
@@ -59,6 +60,7 @@ if __name__ == '__main__':
 	rms_diff_frame = []
 	med_diff_med = []
 
+	maxi = float(np.size(umjd[nstart:nstart+nframes]))
 	for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
 
 		lmst, last = calcLmstLast(mjd, site.longitude_rad)
@@ -120,6 +122,10 @@ if __name__ == '__main__':
 
 		fig.savefig('%s/%05i_.png' % (outdir, i))
 		plt.close(fig)
+		progress = i/maxi
+		text = "\rprogress = %.1f%%" % progress
+		sys.stdout.write(text)
+		sys.stdout.flush()
 		
 	# then just call ffmpeg like here: https://trac.ffmpeg.org/wiki/Create%20a%20video%20slideshow%20from%20images
 	# open with vLC

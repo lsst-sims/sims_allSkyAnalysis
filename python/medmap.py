@@ -54,7 +54,7 @@ for i in np.arange(hp.nside2npix(nside)):
 
 print 'Finished generating map'
 np.savez('sky_maps.npz', sky_maps=sky_maps)
-hp.mollview(sky_maps['medianR'])
+hp.mollview(sky_maps['medianR'], unit='(counts)')
 plt.savefig('median_r.png')
 
 #plt.show()

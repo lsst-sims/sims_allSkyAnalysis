@@ -82,6 +82,7 @@ if __name__ == '__main__':
 			median_value = np.median(diff[gdiff])
 			nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
 			nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
+
 			if nabove != 0:
 				nout = nout/nabove
 			else:

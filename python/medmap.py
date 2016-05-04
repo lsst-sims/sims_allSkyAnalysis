@@ -53,7 +53,7 @@ for i in np.arange(hp.nside2npix(nside)):
         sky_maps['numberR'][i] = np.size(data['R'][~np.isnan(data[key])])
 
 print 'Finished generating map'
-np.savez('sky_maps.npz', sky_maps=sky_maps)
+np.savez('sky_maps.npz', sky_maps=sky_maps, moonAlts=moonAlts, sunAlts=sunAlts, umjd=umjd)
 hp.mollview(sky_maps['medianR'], unit='(counts)')
 plt.savefig('median_r.png')
 

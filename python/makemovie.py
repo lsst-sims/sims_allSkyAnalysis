@@ -7,6 +7,7 @@ from lsst.sims.skybrightness import stupidFast_RaDec2AltAz
 from lsst.sims.utils import calcLmstLast, Site
 from utils import robustRMS
 import sys
+from cloudy_stats import cloudyness
 
 # Let's try making some simple movies to see what the frames and different images look like
 
@@ -33,9 +34,14 @@ if __name__ == '__main__':
 
 	nframes = umjd.size -1 
 
+	
+
 	print 'making %i frames' % nframes
 	nstart = 1
 	
+	# XXX
+	# nframes = 300
+	# nstart = 150
 
 	previous = single_frame(umjd[nstart-1])
 	nside = hp.npix2nside(previous.size)
@@ -59,6 +65,7 @@ if __name__ == '__main__':
 	med_diff_frame = []
 	rms_diff_frame = []
 	med_diff_med = []
+	cloudy_frac = []
 
 	maxi = float(np.size(umjd[nstart:nstart+nframes]))
 	for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
@@ -82,6 +89,7 @@ if __name__ == '__main__':
 			median_value = np.median(diff[gdiff])
 			nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
 			nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
+			cf = cloudyness(diff[gdiff], sigma_max = 0.06)
 
 			if nabove != 0:
 				nout = nout/nabove
@@ -91,15 +99,17 @@ if __name__ == '__main__':
 			rms = hp.UNSEEN
 			median_value = hp.UNSEEN
 			nout = -666
+			cf = -666
 		rms_diff_frame.append(rms)
 		med_diff_frame.append(median_value)
+		cloudy_frac.append(cf)
 
 		fracs_out.append(nout)
 		hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
 		            title='%.2f' % mjd, min=5., max=2000., norm='log')
 		hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
 		            cmap=RdBu, unit='(frame-prev)/prev', 
-		            title=r'$\sigma$=%.2f, percent out=%i' % (rms, nout))
+		            title=r'$\sigma$=%.2f, cloudy frac=%.2f' % (rms, cf))
 		diff2 = (frame - median_filt)/median_filt 
 		out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
 		diff2[out] = hp.UNSEEN
@@ -123,7 +133,7 @@ if __name__ == '__main__':
 
 		fig.savefig('%s/%05i_.png' % (outdir, i))
 		plt.close(fig)
-		progress = i/maxi
+		progress = float(i)/maxi*100.
 		text = "\rprogress = %.1f%%" % progress
 		sys.stdout.write(text)
 		sys.stdout.flush()

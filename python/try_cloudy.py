@@ -27,7 +27,10 @@ def fixBias(frame):
 
 
 umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
-nstart = 150
+
+# nstart = 5506+67  # partly cloudy frame
+nstart = 6447  # very cloudy frame
+# nstart = 982  # clear, with moon
 previous = single_frame(umjd[nstart-1])
 nside = hp.npix2nside(previous.size)
 mjd = umjd[nstart]
@@ -50,26 +53,17 @@ frame = fixBias(frame)
 previous = fixBias(previous)
 
 
+diff = frame - previous
+diff[unseen] = hp.UNSEEN
 
-#frame[seen] = frame[seen] - np.median(frame[seen])
-#previous[seen] = previous[seen]  - np.median(previous[seen])
+diff_frac = diff/previous
+diff_frac[unseen] = hp.UNSEEN
+diff_frac[np.where(previous == 0)] = hp.UNSEEN
 
 
-simple_diff = frame - previous
-simple_diff[unseen] = hp.UNSEEN
-
-diff = frame / previous - 1.
-out = np.where((np.isnan(frame)) | (np.isnan(previous)) | (frame == hp.UNSEEN) |
-               (previous == hp.UNSEEN) | (alt < np.radians(10.)))
-
-diff[out] = hp.UNSEEN
-frame[out] = hp.UNSEEN
-# maybe rotate based on LMST and latitude?
-gdiff = np.where( (diff != hp.UNSEEN) & (np.isnan(diff) == False))[0]
+gdiff = np.where((diff != hp.UNSEEN) & (~np.isnan(diff)))[0]
 if np.size(gdiff) > 0:
-    rms = robustRMS(diff[gdiff])
-    median_value = np.median(diff[gdiff])
-    #nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
-    #nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
-    cf = cloudyness(diff[gdiff], sigma_max = 0.06)
-
+    cf = cloudyness(diff_frac) / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
+    print 'cloudy fraction, 5 deg scale = %.2f' % cf 
+    cf = cloudyness(diff_frac, fwhm=30.) / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
+    print 'cloudy fraction, 30 deg scale = %.2f' % cf 

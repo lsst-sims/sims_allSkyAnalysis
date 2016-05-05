@@ -32,16 +32,16 @@ if __name__ == '__main__':
     RdBu.set_bad('gray')
     RdBu.set_under('w')
 
-    nframes = umjd.size -1 
+    nframes = umjd.size - 1
 
     
-
-    print 'making %i frames' % nframes
     nstart = 1
     
     # XXX
-    # nframes = 300
-    # nstart = 150
+    nframes = 500
+    #nstart = 5506 # 700 #5506
+
+    print 'making %i frames' % nframes
 
     previous = single_frame(umjd[nstart-1])
     nside = hp.npix2nside(previous.size)
@@ -68,7 +68,7 @@ if __name__ == '__main__':
     cloudy_frac = []
 
     maxi = float(np.size(umjd[nstart:nstart+nframes]))
-    for i,mjd in enumerate(umjd[nstart:nstart+nframes]):
+    for i, mjd in enumerate(umjd[nstart:nstart+nframes]):
 
         lmst, last = calcLmstLast(mjd, site.longitude_rad)
         lmst = lmst/12.*180.
@@ -76,20 +76,27 @@ if __name__ == '__main__':
         fig = plt.figure()
         frame = single_frame(mjd, filter_name=cannonFilter)
         # Need to crop off high airmass pixels. use stupid_fast
-        diff = frame / previous - 1. #(10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
-        previous = frame.copy()
+        diff = frame - previous  #(10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
+        diff_frac = diff/previous
+
+        
         out = np.where((np.isnan(frame)) | (np.isnan(previous)) | (frame == hp.UNSEEN) | 
                        (previous == hp.UNSEEN) | (alt < np.radians(10.)))
+        previous = frame.copy()
         diff[out] = hp.UNSEEN
         frame[out] = hp.UNSEEN
+        diff_frac[out] = hp.UNSEEN
+        diff_frac[np.where(previous == 0)] = hp.UNSEEN
         # maybe rotate based on LMST and latitude?
-        gdiff = np.where( (diff != hp.UNSEEN) & (np.isnan(diff) == False))[0]
+        gdiff = np.where((diff != hp.UNSEEN) & (~np.isnan(diff)))[0]
+
         if np.size(gdiff) > 0:
-            rms = robustRMS(diff[gdiff])
-            median_value = np.median(diff[gdiff])
-            nout = np.size(np.where( (np.abs(diff[gdiff] - np.median(diff[gdiff]) ) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
+            rms = robustRMS(diff_frac[gdiff])
+            median_value = np.median(diff_frac[gdiff])
+            nout = np.size(np.where((np.abs(diff[gdiff] - np.median(diff[gdiff])) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
             nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
-            cf = cloudyness(diff[gdiff], sigma_max = 0.06)
+            cf = cloudyness(diff_frac, skyRMS_max=0.02)
+            cf = cf / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
 
             if nabove != 0:
                 nout = nout/nabove
@@ -106,10 +113,13 @@ if __name__ == '__main__':
 
         fracs_out.append(nout)
         hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
-                    title='%.2f' % mjd, min=5., max=2000., norm='log')
-        hp.mollview(diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
+                    title='%.2f, %i' % (mjd, i), min=5., max=2000., norm='log')
+
+        frac_diff = diff / previous
+        frac_diff[out] = hp.UNSEEN
+        hp.mollview(frac_diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
                     cmap=RdBu, unit='(frame-prev)/prev', 
-                    title=r'$\sigma$=%.2f, cloudy frac=%.2f' % (rms, cf))
+                    title=r'$\sigma$=%.2f, frac cloudy=%.2f' % (rms, cf))
         diff2 = (frame - median_filt)/median_filt 
         out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
         diff2[out] = hp.UNSEEN
@@ -143,5 +153,5 @@ if __name__ == '__main__':
     #  ffmpeg -framerate 10 -pattern_type glob -i '*.png'  out.mp4
 
     # Save the stats that came out
-    np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame, 
-             moon_alt=moon_alt, sun_alt=sun_alt, umjd=umjd, fracs_out=fracs_out)
+    # np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame, 
+     #        moon_alt=moon_alt, sun_alt=sun_alt, umjd=umjd, fracs_out=fracs_out)

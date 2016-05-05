@@ -1,34 +1,58 @@
 import numpy as np
 from utils import robustRMS
-from scipy.stats import norm
+import healpy as hp
+import matplotlib.pylab as plt
 
 # Make a function that calculates how cloudy the sky is based on a difference image
 
 
+def cloudyness(diff_image, fwhm=5., sigma_cut=3., 
+               airmass_map=None, airmass_limit=None, skyRMS_max = None):
+    """
+    Parameters
+    ----------
+    diff_image: np.array
+        An array that is the difference of two all-sky images
 
-def cloudyness(diff_image, sigma_max=None, airmass_map=None, airmass_limit=None):
-	"""
-	Parameters
-	----------
-	diff_image: np.array
-	    An array that is the difference of two all-sky images
+    sigma_cut: float
+        blah
 
-	sigma_max: float
-	    Assume the difference standard devation should not be above this
-	"""
+    """
 
-	skyRMS = robustRMS(diff_image)
-	if sigma_max is not None:
-		skyRMS = np.min([skyRMS, sigma_max])	
+    # XXX.  Maybe the solution is to set a minimum angular scale, but then filter on the 
+    # scale that has the most power (if that's larger)?
 
-	im_x = np.sort((diff_image - np.median(diff_image)/skyRMS))
-	im_cdf = np.arange(1, im_x.size+1, dtype=float)/(im_x.size)
-	expected_cdf = norm.cdf(im_x)
+    # Or, there should be some relation between the brightness level of the frame and the 
+    # RMS of the frame--such that if the median of the frame - dark_sky is ~0, the sigma ~= 0.06,
+    # but if frame - dark >> dark, then sigma should scale down.  So that's how I could set skyRMS_max.
 
-	diff = np.abs(im_cdf - expected_cdf)
+    # Also look at imposing some continuity 
 
-	# What is the fraction of pixels that are distributed very non-gaussian like (to within a factor of 2ish)
-	return np.max(diff)
+    unmasked = np.where(diff_image != hp.UNSEEN)[0]
+    skyRMS = robustRMS(diff_image[unmasked])
+    if skyRMS_max is not None:
+        skyRMS = np.min([skyRMS, skyRMS_max])
+
+    # Try to find the angular scale of any clouds?
+
+
+
+    smooth_map = hp.sphtfunc.smoothing(diff_image, fwhm=np.radians(fwhm),
+                                       verbose=False, iter=1)
+    smooth_map[unmasked] = smooth_map[unmasked] - np.median(smooth_map[unmasked])
+
+    outliers = np.where(np.abs(smooth_map[unmasked]) > sigma_cut*skyRMS)[0]
+    # Can think about going back to the original map and growing the region that got flagged
+
+    cloud_mask = np.zeros(diff_image.size, dtype=int)
+    cloud_mask[unmasked[outliers]] = 1
+
+    nside = hp.npix2nside(np.size(diff_image))
+    pix_area = hp.nside2pixarea(nside)
+
+    out_area = outliers.size*pix_area*(180./np.pi)**2
+
+    return out_area
 
 
 

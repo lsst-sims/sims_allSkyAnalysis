@@ -5,7 +5,7 @@ import matplotlib.pylab as plt
 from lsst.sims.utils import Site
 import ephem
 from utils import robustRMS
-
+import sys
 
 
 # Generate the median of the median maps.
@@ -13,7 +13,7 @@ from utils import robustRMS
 nside = 32
 airmass_limit = 3.
 
-names = ['medianR','medianG','medianB', 'stdR', 'stdG', 'stdB', 'numberR']
+names = ['medianR', 'medianG', 'medianB', 'stdR', 'stdG', 'stdB', 'numberR']
 types = [float]*len(names)
 sky_maps = np.zeros(hp.nside2npix(nside), dtype=zip(names, types))
 sky_maps.fill(hp.UNSEEN)
@@ -24,14 +24,14 @@ sun = ephem.Sun()
 moon = ephem.Moon()
 
 obs = ephem.Observer()
-obs.lat, obs.lon, obs.elevation = site.latitude_rad, site.longitude_rad,site.height
+obs.lat, obs.lon, obs.elevation = site.latitude_rad, site.longitude_rad, site.height
 doff = ephem.Date(0)-ephem.Date('1858/11/17')
 udjd = umjd - doff
 moonAlts = umjd*0.
 sunAlts = umjd*0.
 
 print 'Computing moon and sun altitudes'
-for i,mjd in enumerate(umjd):
+for i, mjd in enumerate(umjd):
     obs.date = udjd[i]
     moon.compute(obs)
     sun.compute(obs)
@@ -41,20 +41,25 @@ for i,mjd in enumerate(umjd):
 goodDates = umjd[np.where((moonAlts < 0) & (sunAlts < np.radians(-18.)))]
 
 print 'looping over each healpixel'
+imax = hp.nside2npix(nside)
 for i in np.arange(hp.nside2npix(nside)):
     data = medDB(where_clause='hpindex = %i' % i)
     data = data[np.in1d(data['mjd'], goodDates)]
     data = data[np.where(data['airmass'] <= airmass_limit)]
     if np.size(data) > 0:
-        for key in ['R','G','B']:
+        for key in ['R', 'G', 'B']:
             sky_maps['median'+key][i] = np.median(data[key][~np.isnan(data[key])])
             if np.size(data[key][~np.isnan(data[key])]) > 3:
                 sky_maps['std'+key][i] = robustRMS(data[key][~np.isnan(data[key])])
         sky_maps['numberR'][i] = np.size(data['R'][~np.isnan(data[key])])
+    progress = float(i)/imax*100.
+    text = "\rprogress = %.1f%%" % progress
+    sys.stdout.write(text)
+    sys.stdout.flush()
 
 print 'Finished generating map'
 np.savez('sky_maps.npz', sky_maps=sky_maps, moonAlts=moonAlts, sunAlts=sunAlts, umjd=umjd)
-hp.mollview(sky_maps['medianR'], unit='(counts)')
-plt.savefig('median_r.png')
-
-#plt.show()
+for filtername in ['R', 'G', 'B']:
+    hp.mollview(sky_maps['median' + filtername], unit='(counts)')
+    plt.savefig('median_%s.png' % filtername)
+    plt.close('all')

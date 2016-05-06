@@ -55,7 +55,9 @@ fluxes = np.array(fluxes)
 backgrounds = np.array(backgrounds)
 print 'stars'
 for i in np.arange(2):
-    print 'mean, std = %f, %f' % (fluxes[:, i].mean(), fluxes[:, i].std())
+    print 'mean, std, mean^0.5 = %f, %f, %f' % (fluxes[:, i].mean(),
+                                                fluxes[:, i].std(),
+                                                fluxes[:, i].mean()**0.5)
 
 print 'background stats (unilluminated section and blankish area)'
 for i in np.arange(2):

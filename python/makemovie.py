@@ -26,7 +26,13 @@ if __name__ == '__main__':
     #frame_stats = data['frame_stats'].copy()
     #data.close()
 
-    umjd =  medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
+    # umjd =  medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
+
+    doPlots = False
+    skyMaps = np.load('sky_maps.npz')
+    umjd = skyMaps['umjd'].copy()
+    sun_alts = skyMaps['sunAlts'].copy()
+    moon_alts = skyMaps['moonAlts'].copy()
 
     RdBu = plt.get_cmap('RdBu')
     RdBu.set_bad('gray')
@@ -34,11 +40,10 @@ if __name__ == '__main__':
 
     nframes = umjd.size - 1
 
-    
     nstart = 1
     
     # XXX
-    nframes = 500
+    # nframes = 500
     #nstart = 5506 # 700 #5506
 
     print 'making %i frames' % nframes
@@ -70,16 +75,16 @@ if __name__ == '__main__':
     maxi = float(np.size(umjd[nstart:nstart+nframes]))
     for i, mjd in enumerate(umjd[nstart:nstart+nframes]):
 
-        lmst, last = calcLmstLast(mjd, site.longitude_rad)
-        lmst = lmst/12.*180.
-        alt, az = stupidFast_RaDec2AltAz(ra, dec, site.latitude_rad, site.longitude_rad, mjd)
-        fig = plt.figure()
         frame = single_frame(mjd, filter_name=cannonFilter)
         # Need to crop off high airmass pixels. use stupid_fast
         diff = frame - previous  #(10.**(-0.4*frame) / 10.**(-.4*previous)) - 1.
         diff_frac = diff/previous
-
         
+
+        lmst, last = calcLmstLast(mjd, site.longitude_rad)
+        lmst = lmst/12.*180.
+        alt, az = stupidFast_RaDec2AltAz(ra, dec, site.latitude_rad, site.longitude_rad, mjd)
+
         out = np.where((np.isnan(frame)) | (np.isnan(previous)) | (frame == hp.UNSEEN) | 
                        (previous == hp.UNSEEN) | (alt < np.radians(10.)))
         previous = frame.copy()
@@ -95,7 +100,7 @@ if __name__ == '__main__':
             median_value = np.median(diff_frac[gdiff])
             nout = np.size(np.where((np.abs(diff[gdiff] - np.median(diff[gdiff])) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
             nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
-            cf = cloudyness(diff_frac, skyRMS_max=0.02)
+            cf = cloudyness(diff_frac, skyRMS_max=0.05)
             cf = cf / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
 
             if nabove != 0:
@@ -112,21 +117,30 @@ if __name__ == '__main__':
         cloudy_frac.append(cf)
 
         fracs_out.append(nout)
-        hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
-                    title='%.2f, %i' % (mjd, i), min=5., max=2000., norm='log')
+        if doPlots:
+            fig = plt.figure()
+            hp.mollview(frame, sub=(2,2,1), rot=(lmst, site.latitude,0), unit='counts', 
+                        title='%.2f, %i' % (mjd, i), min=5., max=2000., norm='log')
 
-        frac_diff = diff / previous
-        frac_diff[out] = hp.UNSEEN
-        hp.mollview(frac_diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
-                    cmap=RdBu, unit='(frame-prev)/prev', 
-                    title=r'$\sigma$=%.2f, frac cloudy=%.2f' % (rms, cf))
-        diff2 = (frame - median_filt)/median_filt 
-        out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
-        diff2[out] = hp.UNSEEN
-        good = np.where(diff2 != hp.UNSEEN)
-        hp.mollview(diff2, sub=(2,2,3), min=-0.3, max=0.3, rot=(lmst, site.latitude,0), 
-                    cmap=RdBu, unit='(frame-median)/median (flux)', title='median = %.1f' % np.median(diff2[good]))
-        med_diff_med.append(np.median(diff2[good]))
+            frac_diff = diff / previous
+            frac_diff[out] = hp.UNSEEN
+            hp.mollview(frac_diff, sub=(2,2,2), min=-.3, max=.3,  rot=(lmst, site.latitude,0), 
+                        cmap=RdBu, unit='(frame-prev)/prev', 
+                        title=r'$\sigma$=%.2f, frac cloudy=%.2f' % (rms, cf))
+            diff2 = (frame - median_filt)/median_filt 
+            out = np.where((frame == hp.UNSEEN) | (median_filt == hp.UNSEEN) | (alt < np.radians(10.)))
+            diff2[out] = hp.UNSEEN
+            good = np.where(diff2 != hp.UNSEEN)
+            # hp.mollview(diff2, sub=(2,2,3), min=-0.3, max=0.3, rot=(lmst, site.latitude,0),
+            #             cmap=RdBu, unit='(frame-median)/median (flux)', title='median = %.1f' % np.median(diff2[good]))
+
+            diff3 = 2.5*np.log10(frame/median_filt)
+            diff3[out] = hp.UNSEEN
+            hp.mollview(diff3, sub=(2,2,3), rot=(lmst, site.latitude,0), min=-1, max=5, 
+                        unit='2.5log (frame/median frame)', title='median = %.1f' % np.median(diff2[good]))
+            med_diff_med.append(np.median(diff2[good]))
+            fig.savefig('%s/%05i_.png' % (outdir, i))
+            plt.close(fig)
 
         #diff_correlation = (diff*diff2)**2
         #out = np.where((diff == hp.UNSEEN) | (diff2 == hp.UNSEEN))
@@ -140,9 +154,7 @@ if __name__ == '__main__':
         #sm, sm_diff = starmap(mjd)
         #hp.mollview(sm, sub=(2,2,3), rot=(lmst, site.latitude,0), unit='N stars', title='')
         #hp.mollview(sm_diff, sub=(2,2,4), rot=(lmst, site.latitude,0), unit='N stars', title='')
-
-        fig.savefig('%s/%05i_.png' % (outdir, i))
-        plt.close(fig)
+        
         progress = float(i)/maxi*100.
         text = "\rprogress = %.1f%%" % progress
         sys.stdout.write(text)
@@ -153,5 +165,6 @@ if __name__ == '__main__':
     #  ffmpeg -framerate 10 -pattern_type glob -i '*.png'  out.mp4
 
     # Save the stats that came out
-    # np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame, 
-     #        moon_alt=moon_alt, sun_alt=sun_alt, umjd=umjd, fracs_out=fracs_out)
+    np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame,
+             cloudy_frac=cloudy_frac, sun_alts = sun_alts, moon_alts = moon_alts,
+             umjd=umjd, fracs_out=fracs_out)

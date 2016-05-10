@@ -21,15 +21,22 @@ fluxes = []
 backgrounds = []
 for n, positions in zip(n_list, positions_list):
 
-    filename = 'ut011316.0'+str(n)+'.long.%s.fits' % filtername
 
+    # Add all the images together
+    for filtername in ['B', 'G', 'R']:
+        fits_path = '/Users/yoachim/Scratch/allSkyCamera/fits/lsst-web.ncsa.illinois.edu/~coughlin/allsky/data/FITS/ut011316/%s/' % filtername
+        filename = 'ut011316.0'+str(n)+'.long.%s.fits' % filtername
+        hdulist = fits.open(os.path.join(fits_path, filename))
+        data = hdulist[0].data
+        # Let's do a crude background
+        bg = np.median(data[1500:2000, 1000:1500])
+        data = data - bg
+        if filtername == 'B':
+            image = data.copy()
+        else:
+            image += data
+        data = image
 
-    hdulist = fits.open(os.path.join(fits_path, filename))
-    data = hdulist[0].data
-
-    # Let's do a cude background
-    bg = np.median(data[1500:2000, 1000:1500])
-    data = data - bg
 
     # Create appertures in pixel coords
     # bright star and fainter star

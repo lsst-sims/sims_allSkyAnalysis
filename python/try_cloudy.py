@@ -15,7 +15,8 @@ from cloudy_stats import cloudyness
 
 # XXXX
 # Still have an interesting issue with 0.5 since np.median will mean values. Fantastic.
-# I still kind of wish the 
+# I still kind of wish the
+
 
 def fixBias(frame):
     good = np.where((frame != hp.UNSEEN) & (frame > 0))
@@ -25,11 +26,12 @@ def fixBias(frame):
     return result
 
 
+# umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
+skyMaps = np.load('sky_maps.npz')
+umjd = skyMaps['umjd'].copy()
 
-umjd = medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
-
-# nstart = 5506+67  # partly cloudy frame
-nstart = 6447  # very cloudy frame
+nstart = 5506+67  # partly cloudy frame
+#nstart = 6447  # very cloudy frame
 # nstart = 982  # clear, with moon
 previous = single_frame(umjd[nstart-1])
 nside = hp.npix2nside(previous.size)
@@ -64,6 +66,6 @@ diff_frac[np.where(previous == 0)] = hp.UNSEEN
 gdiff = np.where((diff != hp.UNSEEN) & (~np.isnan(diff)))[0]
 if np.size(gdiff) > 0:
     cf = cloudyness(diff_frac) / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
-    print 'cloudy fraction, 5 deg scale = %.2f' % cf 
+    print 'cloudy fraction, 5 deg scale = %.2f' % cf
     cf = cloudyness(diff_frac, fwhm=30.) / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
-    print 'cloudy fraction, 30 deg scale = %.2f' % cf 
+    print 'cloudy fraction, 30 deg scale = %.2f' % cf

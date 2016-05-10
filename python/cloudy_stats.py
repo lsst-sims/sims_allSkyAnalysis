@@ -19,14 +19,14 @@ def cloudyness(diff_image, fwhm=5., sigma_cut=3.,
 
     """
 
-    # XXX.  Maybe the solution is to set a minimum angular scale, but then filter on the 
+    # XXX.  Maybe the solution is to set a minimum angular scale, but then filter on the
     # scale that has the most power (if that's larger)?
 
-    # Or, there should be some relation between the brightness level of the frame and the 
+    # Or, there should be some relation between the brightness level of the frame and the
     # RMS of the frame--such that if the median of the frame - dark_sky is ~0, the sigma ~= 0.06,
     # but if frame - dark >> dark, then sigma should scale down.  So that's how I could set skyRMS_max.
 
-    # Also look at imposing some continuity 
+    # Also look at imposing some continuity
 
     unmasked = np.where(diff_image != hp.UNSEEN)[0]
     skyRMS = robustRMS(diff_image[unmasked])
@@ -34,8 +34,6 @@ def cloudyness(diff_image, fwhm=5., sigma_cut=3.,
         skyRMS = np.min([skyRMS, skyRMS_max])
 
     # Try to find the angular scale of any clouds?
-
-
 
     smooth_map = hp.sphtfunc.smoothing(diff_image, fwhm=np.radians(fwhm),
                                        verbose=False, iter=1)

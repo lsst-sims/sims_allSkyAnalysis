@@ -28,7 +28,9 @@ if __name__ == '__main__':
 
     # umjd =  medDB(full_select='select DISTINCT(mjd) from medskybrightness;', dtypes=float)
 
-    doPlots = False
+    doPlots = True
+    saveStats = False
+
     skyMaps = np.load('sky_maps.npz')
     umjd = skyMaps['umjd'].copy()
     sun_alts = skyMaps['sunAlts'].copy()
@@ -43,8 +45,8 @@ if __name__ == '__main__':
     nstart = 1
     
     # XXX
-    # nframes = 500
-    #nstart = 5506 # 700 #5506
+    nframes = 500
+    nstart = 1500# 700 #5506
 
     print 'making %i frames' % nframes
 
@@ -100,7 +102,7 @@ if __name__ == '__main__':
             median_value = np.median(diff_frac[gdiff])
             nout = np.size(np.where((np.abs(diff[gdiff] - np.median(diff[gdiff])) > outlier_mag) & (alt[gdiff] > alt_limit))[0])
             nabove = float(np.size(np.where(alt[gdiff] > alt_limit)[0]))*100
-            cf = cloudyness(diff_frac, skyRMS_max=0.05)
+            cf, cloud_mask = cloudyness(diff_frac, skyRMS_max=0.05)
             cf = cf / (gdiff.size*hp.nside2pixarea(nside)*(180./np.pi)**2)
 
             if nabove != 0:
@@ -138,6 +140,10 @@ if __name__ == '__main__':
             diff3[out] = hp.UNSEEN
             hp.mollview(diff3, sub=(2,2,3), rot=(lmst, site.latitude,0), min=-1, max=5, 
                         unit='2.5log (frame/median frame)', title='median = %.1f' % np.median(diff2[good]))
+
+            hp.mollview(cloud_mask, sub=(2,2,4), rot=(lmst, site.latitude,0), unit='mask', title='cloud mask',
+                        min=-1, max=1, cmap=RdBu)
+
             med_diff_med.append(np.median(diff2[good]))
             fig.savefig('%s/%05i_.png' % (outdir, i))
             plt.close(fig)
@@ -165,6 +171,7 @@ if __name__ == '__main__':
     #  ffmpeg -framerate 10 -pattern_type glob -i '*.png'  out.mp4
 
     # Save the stats that came out
-    np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame,
-             cloudy_frac=cloudy_frac, sun_alts = sun_alts, moon_alts = moon_alts,
-             umjd=umjd, fracs_out=fracs_out)
+    if saveStats:
+        np.savez('movie_stats.npz', med_diff_med=med_diff_med, med_diff_frame=med_diff_frame,
+                 cloudy_frac=cloudy_frac, sun_alts = sun_alts, moon_alts = moon_alts,
+                 umjd=umjd, fracs_out=fracs_out)

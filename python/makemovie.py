@@ -98,6 +98,7 @@ if __name__ == '__main__':
             median_value = hp.UNSEEN
             nout = -666
             cf = -666
+            cloud_mask = diff_frac*0
         rms_diff_frame.append(rms)
         med_diff_frame.append(median_value)
         above_limit = np.where(alt > alt_limit)[0]

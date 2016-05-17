@@ -18,8 +18,8 @@ if __name__ == '__main__':
 
     outdir = 'MoviePlots'
 
-    doPlots = True
-    saveStats = False
+    doPlots = False
+    saveStats = True
 
     skyMaps = np.load('sky_maps.npz')
     umjd = skyMaps['umjd'].copy()
@@ -34,8 +34,8 @@ if __name__ == '__main__':
 
     nstart = 1
     # XXX
-    nframes = 500
-    nstart = 175100  # 192265 #1500# 700 #5506
+    #nframes = 500
+    #nstart = 175100  # 192265 #1500# 700 #5506
 
     print 'making %i frames' % nframes
 

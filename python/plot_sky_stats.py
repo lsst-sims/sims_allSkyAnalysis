@@ -14,7 +14,9 @@ sun_alts = stats['sun_alts'].copy().ravel()
 
 good = np.where((cloudy_frac != -666) & (sun_alts[1:] < np.radians(-12.)))
 
-plt.hist(cloudy_frac[good], bins=100)
+plt.hist(cloudy_frac[good], bins=np.linspace(0,0.2,100))
+plt.xlabel('Cloudy Fraction')
+plt.ylabel('Fraction of Observations')
 
 # check a frame
 

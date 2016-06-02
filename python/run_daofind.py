@@ -40,5 +40,5 @@ if __name__ == "__main__":
             outfile='Plots/example_phot.png')
     try_dao('/Users/yoachim/Scratch/allSkyCamera/fits/lsst-web.ncsa.illinois.edu/~coughlin/allsky/data/FITS/ut012616/ut012616.0664.long.fits',
             outfile='Plots/example_phot_cloud.png')
-    try_dao('/Users/yoachim/Scratch/allSkyCamera/fits/lsst-web.ncsa.illinois.edu/~coughlin/allsky/data/FITS/ut012516/ut012516.0442.long.fits',
+    try_dao('/Users/yoachim/Scratch/allSkyCamera/fits/lsst-web.ncsa.illinois.edu/~coughlin/allsky/data/FITS/ut012516/ut012516.0694.long.fits',
             outfile='Plots/example_phot_moon.png')

@@ -2,7 +2,13 @@ import numpy as np
 import healpy as hp
 from cloudy_stats import cloudyness
 from medDB import single_frame
-import healpy as hp
+from lsst.sims.skybrightness import stupidFast_altAz2RaDec, stupidFast_RaDec2AltAz
+from lsst.sims.utils import _raDec2Hpid, _hpid2RaDec, Site
+from scipy import interpolate
+
+site = Site('LSST')
+lat = site.latitude_rad
+lon = site.longitude_rad
 
 # Let's load up a few frames where there are some easy streaks of clouds that we want to try and dodge
 
@@ -19,31 +25,37 @@ def diff_hp(frame1,frame2, norm=True):
     return result
 
 
-def screen2hp(nside, npix=1000, height=500.):
+def screen2hp(nside, mjd, npix=1000, height=500.):
 
     # generate a screen
     xx, yy = np.meshgrid(np.arange(-npix, npix, 1), np.arange(-npix, npix, 1), indexing='ij')
     r = (xx**2+yy**2)**0.5
     az = np.arctan2(yy,xx)
     alt = np.arctan(height/r)
-
+    ra, dec = stupidFast_altAz2RaDec(alt, az, lat, lon, mjd)
     # Ah, I can convert these alt,az coords to ra,dec, then there's no problem using an ra,dec cloud map.
+    hpids = _raDec2Hpid(nside, ra, dec)
 
-    hpids = hp.ang2pix(nside, alt, az)
     return hpids
 
 
 
 
-def hp2screen(nside, hpInd, height):
+def hp2screen(inmap, mjd, height=500, alt_limit=10.):
     """
-    Convert a healpy map to a flat screen
+    Convert a healpy map to a flat screen at height h
     """
-    
-    # XXX--check that this is right!!
-    alt, az = hp.pix2ang(nside, hpInd)
-    radius = height/np.tan(alt)
-    
+    nside = hp.npix2nside(inmap.size)
+    unmasked = np.where(inmap != hp.UNSEEN)[0]
+    ra, dec = _hpid2RaDec(nside, unmasked)
+    alt, az = stupidFast_RaDec2AltAz(ra, dec, lat, lon, mjd)
+    good = np.where(np.degrees(alt) > alt_limit)
+    r = height/np.tan(alt[good])
+    x = r*np.cos(az[good])
+    y = r*np.sin(az[good])
+    z = inmap[unmasked][good]
+    return x,y,z
+
 
 
 # Maybe class this up, so that I can pre-compute the nsides and alt az conversions?
@@ -100,13 +112,25 @@ if __name__ == '__main__':
     # ah, cloudmask is in ra,dec.  Need to rotate os that we're in alt-az!
 
     nside = hp.npix2nside(cloudmask.size)
-    hpids = screen2hp(nside)
+    #hpids = screen2hp(nside)
+    #screen = cloudmask[hpids]
 
-    screen = cloudmask[hpids]
+    x, y, z = hp2screen(cloudmask, umjd[startnum])
+
+    H, xe, ye = np.histogram2d(x,y, bins=1000, weights=z)
+
+    # OK, I can interpolate this to a meshgrid, then cross-correlate the plus and minus.  
+    #screenInterp = interpolate.interp2d(x, y, z, kind='linear')
+
+    #npix = 3000
+    #xx, yy = np.meshgrid(np.arange(-npix, npix, 1), np.arange(-npix, npix, 1), indexing='ij')
+
+    #zz = screenInterp(xx,yy)
 
 
-    high = hp.pixelfunc.ud_grade(cloudmask, nside_out=nside*2)
-    lower = hp.pixelfunc.ud_grade(high, nside_out=nside)
+    # Ah, this is how to change resolution on maps
+    # high = hp.pixelfunc.ud_grade(cloudmask, nside_out=nside*2)
+    # lower = hp.pixelfunc.ud_grade(high, nside_out=nside)
 
 
     # General plan:  flag a bunch of pixels as cloudy.  subsample to higher res.  find the best fit altitude and vel that moves cloudy pixels around.

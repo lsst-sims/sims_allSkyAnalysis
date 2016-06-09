@@ -8,6 +8,9 @@ import healpy as hp
 # Created by Michael Coughlin and shared at:
 # https://lsst-web.ncsa.illinois.edu/~coughlin/git-repo/mediansql/meddata.sqlite
 
+# or use my new median binned database:
+# lsst-dev.ncsa.illinois.edu:/home/yoachim/all_sky_db/all_sky_sqlite.db (and just sym-link to meddata.sqlite)
+
 
 def medDB(where_clause=None, full_select = None, dtypes=None):
     """

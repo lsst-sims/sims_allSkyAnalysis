@@ -4,8 +4,10 @@ from cloudy_stats import cloudyness
 from medDB import single_frame
 from lsst.sims.skybrightness import stupidFast_altAz2RaDec, stupidFast_RaDec2AltAz
 from lsst.sims.utils import _raDec2Hpid, _hpid2RaDec, Site
-from scipy import interpolate
+from scipy import interpolate, signal
 import warnings
+import matplotlib.pylab as plt
+
 
 site = Site('LSST')
 lat = site.latitude_rad
@@ -26,7 +28,7 @@ def diff_hp(frame1,frame2, norm=True):
     return result
 
 
-def screen2hp(nside, mjd, npix=1000, height=500.):
+def screen2hp(nside, mjd, npix=600, height=500.):
 
     # generate a screen
     xx, yy = np.meshgrid(np.arange(-npix, npix, 1), np.arange(-npix, npix, 1), indexing='ij')
@@ -83,21 +85,6 @@ def propigateClouds(cloudmask, height, velocity, dt):
     xnew = x*velocity[0]*dt
     ynew = y*velocity[1]*dt
 
-    
-
-def predictCloudMotion(cloudMask, diffTime):
-    """
-    Given a cloud mask, try to fit an altitude and velocity to all the cloudy pixels and 
-    propigate it forward in time to the next cloudy frame
-
-    Inputs
-    ------
-    cloudMask : healpy mask
-        Mask with +/-1 and 0 values.  Assumes positive pixels propigate to negative pixels
-    diffTime : float
-        The time gap between exposures.  Seconds.
-    """
-
 
 
 class CloudMotion(object):
@@ -105,19 +92,19 @@ class CloudMotion(object):
     Take two maps and predict where the clouds will be in the future
     """
 
-    def __init__(self, nside=64):
+    def __init__(self):
         """
         Set up the resolution of various things?
         """
 
         self.predictLimit = 20.  # minutes
 
-    def set_maps(self, map1,map2, mjd1,mjd2):
+    def set_maps(self, map1, map2, mjd1, mjd2):
         """
         set the two cloud maps to use to generate cloud motion predictions
         """
 
-        # Put things in correct order
+        # Put things in correct order if not already
         if mjd2 < mjd1:
             self.mjd1 = mjd2
             self.mjd2 = mjd1
@@ -129,15 +116,37 @@ class CloudMotion(object):
             self.map2 = map2
             self.map1 = map1
 
+        self.nside = hp.npix2nside(map1.size)
+        if hp.npix2nside(map2.size) != self.nside:
+            raise ValueError('nside of map1 and map2 do not match.')
+
+        # What is the time between images
         self.dt = self.mjd2-self.mjd1
 
         # Diff the maps, project to a screen.
-        # hmm, should probably change this to be a diff on screen rather than on sphere. 
-        diff = diff_hp(single_frame(umjd[startnum+1]), single_frame(umjd[startnum]))
-        cloudyArea, cloudmask = cloudyness(diff)
+        # hmm, should probably change this to be a diff on screen rather than on sphere?
+        diff = diff_hp(self.map1, self.map2)
+        cloudyArea, self.cloudmask = cloudyness(diff)
 
-        # Find the best shift, dx, dy
+        self._find_dx_dy()
 
+    def _find_dx_dy(self):
+        """
+        Once the cloudmask has been set, find the best fitting dx and dy
+        """
+
+        grid_x, grid_y, screen_grid = hp2screen(self.cloudmask, self.mjd2)
+
+        plus_screen = screen_grid*0
+        minus_screen = screen_grid*0
+        plus_screen[np.where(screen_grid > 0)] = 1
+        minus_screen[np.where(screen_grid < 0)] = 1
+        import pdb ; pdb.set_trace()
+        # Compute the cross correlation of the clouds
+        # This is crazy slow.  Maybe just run some sort of simple minimizer.
+        #corr = signal.correlate2d(plus_screen, minus_screen, boundary='symm', mode='same')
+
+        
 
     def forecast(self, mjd, usemap='both'):
         """
@@ -153,8 +162,6 @@ class CloudMotion(object):
         dt2 = (mjd-self.mjd2)*24*60
         if  dt2 > self.predictLimit:
             warnings.warn('Time gap of %f minutes is greater than limit %f minutes' % (dt2, self.predictLimit))
-
-
 
 
 
@@ -174,17 +181,25 @@ if __name__ == '__main__':
     sun_alts = skyMaps['sunAlts'][good].copy()
     moon_alts = skyMaps['moonAlts'][good].copy()
 
-    startnum = 300
+    startnum = 300+20
 
-    diff = diff_hp(single_frame(umjd[startnum+1]), single_frame(umjd[startnum]))
-    cloudyArea, cloudmask = cloudyness(diff)
+    mjd1 = umjd[startnum]
+    mjd2 = umjd[startnum+1]
+
+    cm = CloudMotion()
+    cm.set_maps(single_frame(mjd1), single_frame(mjd2), mjd1, mjd2)
+
+
+
+    #diff = diff_hp(single_frame(umjd[startnum+1]), single_frame(umjd[startnum]))
+    #cloudyArea, cloudmask = cloudyness(diff)
     # ah, cloudmask is in ra,dec.  Need to rotate os that we're in alt-az!
 
-    nside = hp.npix2nside(cloudmask.size)
+    #nside = hp.npix2nside(cloudmask.size)
     #hpids = screen2hp(nside)
     #screen = cloudmask[hpids]
 
-    grid_x, grid_y, screen_grid = hp2screen(cloudmask, umjd[startnum])
+    #grid_x, grid_y, screen_grid = hp2screen(cloudmask, umjd[startnum])
 
 
 

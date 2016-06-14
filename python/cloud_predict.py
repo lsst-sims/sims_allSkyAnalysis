@@ -67,6 +67,15 @@ def hp2screen(inmap, mjd, height=500, alt_limit=10., npts=600, grid_x=None, grid
 
     return grid_x, grid_y, screen_grid
 
+def grid2radec(x, y, mjd, height=500):
+    """
+    compute a screen image to ra,dec coordinates
+    """
+    az = np.arctan2(y, x)
+    r = x/np.cos(az)
+    alt = np.arctan2(r, height)
+    ra, dec = stupidFast_altAz2RaDec(alt, az, lat, lon, mjd)
+    return ra, dec
 
 
 # Maybe class this up, so that I can pre-compute the nsides and alt az conversions?
@@ -98,6 +107,7 @@ class CloudMotion(object):
         """
 
         self.predictLimit = 20.  # minutes
+        self.shiftMax = 100  # pixels
 
     def set_maps(self, map1, map2, mjd1, mjd2):
         """
@@ -130,6 +140,7 @@ class CloudMotion(object):
 
         self._find_dx_dy()
 
+
     def _find_dx_dy(self):
         """
         Once the cloudmask has been set, find the best fitting dx and dy
@@ -139,35 +150,89 @@ class CloudMotion(object):
 
         plus_screen = screen_grid*0
         minus_screen = screen_grid*0
-        plus_screen[np.where(screen_grid > 0)] = 1
-        minus_screen[np.where(screen_grid < 0)] = 1
-        import pdb ; pdb.set_trace()
+        self.plus_screen[np.where(screen_grid > 0)] = 1
+        self.minus_screen[np.where(screen_grid < 0)] = 1
+
+        plus_screen = np.pad(self.plus_screen, self.shiftMax, mode='constant', constant_values=0)
+        minus_screen = np.pad(self.minus_screen, self.shiftMax, mode='constant', constant_values=0)
+
+        # Super ugly brute force loop. Should be something in scipy.optimize that can do this much better. Or
+        # just cython the damn thing or something.
+        result = np.zeros((2*self.shiftMax+1, 2*self.shiftMax+1), dtype=int)
+        for i in np.arange(0, self.shiftMax*2+1, 1):
+            for j in np.arange(0, self.shiftMax*2+1, 1):
+                result[i, j] = np.sum(np.roll(np.roll(plus_screen, i-self.shiftMax, axis=0),
+                                              j-self.shiftMax, axis=1) * minus_screen)
+
+        # shift in time self.dt in screen pixels
+        dx, dy = np.where(result == result.max())
+        self.vx = dx/self.dt
+        self.vy = dy/self.dt
+
+        # Pretty sure the minus_screen is the one that should move less.
+
+
+
+        # In the future, could fit a fuzzy peak and do a different set of propigations. Or,
+        # Just fit a FWHM to the peak and then propigate the central peak and smear the 
+        # resulting map by the FWHM!
+
+        
         # Compute the cross correlation of the clouds
         # This is crazy slow.  Maybe just run some sort of simple minimizer.
         #corr = signal.correlate2d(plus_screen, minus_screen, boundary='symm', mode='same')
 
         
 
-    def forecast(self, mjd, usemap='both'):
+    def forecast(self, mjd, usemap='both', cloudsComing=False):
         """
         Return a healpix map that is an ra,dec cloud mask prediction at input mjd
 
         mjd : float
-            The Modified Julian Date to predict the cloud cover too
-        usemap : str (map1, map2, both)
+            The Modified Julian Dates to predict the cloud cover too
+        usemap : str ("map1", "map2", "both")
             Which input map should be propigated forward in time.  Default is to be conservative 
             and propigate all pixels flagged as cloudy in both maps.
+        cloudsComing: bool
+            Should we assume there are clouds beyong the horizon that are blowing in?
         """
 
-        dt2 = (mjd-self.mjd2)*24*60
-        if  dt2 > self.predictLimit:
-            warnings.warn('Time gap of %f minutes is greater than limit %f minutes' % (dt2, self.predictLimit))
+        if cloudsComing:
+            constant_value = 0
+        else:
+            constant_value = 1
+
+        dt1 = mjd - self.mjd1
+        dt2 = mjd - self.mjd2
+        if np.max([dt1, dt2]) > self.predictLimit:
+            warnings.warn('Time gap of %f minutes is greater than limit %f minutes' % (dt2.max(),
+                                                                                       self.predictLimit))
+
+        
+        screen1 = np.pad(self.plus_screen, self.shiftMax, mode='constant', constant_values=constant_value)
+        screen2 = np.pad(self.minus_screen, self.shiftMax, mode='constant', constant_values=constant_value)
+
+        screen1 = np.roll(np.roll(screen1, np.round(self.vx*dt1), axis=0), np.round(self.vy*dt1), axis=1)
+        screen2 = np.roll(np.roll(screen2, np.round(self.vx*dt1), axis=0), np.round(self.vy*dt1), axis=1)
+
+        # Generate a blank healpix map to hold the result
+        propedMask = np.zeros(hp.nside2npix(self.nside))
+
+
+
+        if (usemap == 'map1') | (usemap == 'both'):
+            # convert screen1 from x,y to ra,dec. Use healbin.
+
+        if (usemap == 'map2') | (usemap == 'both'):
+            
+
 
 
 
         # What is the best way to test the forecast? Maybe say what fraction of sky is cloudy vs what fraction of 
         # predicted clear space is cloudy?  Above some airmass limit.  Also a stat on how much clear sky was lost
         # to falsly predicted cloudy area.
+
 
 
 if __name__ == '__main__':

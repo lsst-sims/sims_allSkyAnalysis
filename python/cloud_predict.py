@@ -3,7 +3,7 @@ import healpy as hp
 from cloudy_stats import cloudyness
 from medDB import single_frame
 from lsst.sims.skybrightness import stupidFast_altAz2RaDec, stupidFast_RaDec2AltAz
-from lsst.sims.utils import _raDec2Hpid, _hpid2RaDec, Site
+from lsst.sims.utils import _raDec2Hpid, _hpid2RaDec, Site, _healbin
 from scipy import interpolate, signal
 import warnings
 import matplotlib.pylab as plt
@@ -15,11 +15,12 @@ lon = site.longitude_rad
 
 # Let's load up a few frames where there are some easy streaks of clouds that we want to try and dodge
 
-def diff_hp(frame1,frame2, norm=True):
+
+def diff_hp(frame1, frame2, norm=True):
     """
     Take the difference of two healpy maps
     """
-    mask = np.where( (frame1==hp.UNSEEN) | (frame2 == hp.UNSEEN))
+    mask = np.where((frame1 == hp.UNSEEN) | (frame2 == hp.UNSEEN))
     result = frame1 - frame2
     if norm:
         result = result/frame1
@@ -33,15 +34,13 @@ def screen2hp(nside, mjd, npix=600, height=500.):
     # generate a screen
     xx, yy = np.meshgrid(np.arange(-npix, npix, 1), np.arange(-npix, npix, 1), indexing='ij')
     r = (xx**2+yy**2)**0.5
-    az = np.arctan2(yy,xx)
+    az = np.arctan2(yy, xx)
     alt = np.arctan(height/r)
     ra, dec = stupidFast_altAz2RaDec(alt, az, lat, lon, mjd)
     # Ah, I can convert these alt,az coords to ra,dec, then there's no problem using an ra,dec cloud map.
     hpids = _raDec2Hpid(nside, ra, dec)
 
     return hpids
-
-
 
 
 def hp2screen(inmap, mjd, height=500, alt_limit=10., npts=600, grid_x=None, grid_y=None):
@@ -66,6 +65,7 @@ def hp2screen(inmap, mjd, height=500, alt_limit=10., npts=600, grid_x=None, grid
     # Pretty clear this should be a class rather than a bunch of functions.
 
     return grid_x, grid_y, screen_grid
+
 
 def grid2radec(x, y, mjd, height=500):
     """
@@ -148,8 +148,8 @@ class CloudMotion(object):
 
         grid_x, grid_y, screen_grid = hp2screen(self.cloudmask, self.mjd2)
 
-        plus_screen = screen_grid*0
-        minus_screen = screen_grid*0
+        self.plus_screen = screen_grid*0
+        self.minus_screen = screen_grid*0
         self.plus_screen[np.where(screen_grid > 0)] = 1
         self.minus_screen[np.where(screen_grid < 0)] = 1
 
@@ -208,25 +208,44 @@ class CloudMotion(object):
             warnings.warn('Time gap of %f minutes is greater than limit %f minutes' % (dt2.max(),
                                                                                        self.predictLimit))
 
-        
+        # Pad the screen. Make the pad 0 or 1 depending on if we thing clouds are coming
         screen1 = np.pad(self.plus_screen, self.shiftMax, mode='constant', constant_values=constant_value)
         screen2 = np.pad(self.minus_screen, self.shiftMax, mode='constant', constant_values=constant_value)
 
-        screen1 = np.roll(np.roll(screen1, np.round(self.vx*dt1), axis=0), np.round(self.vy*dt1), axis=1)
-        screen2 = np.roll(np.roll(screen2, np.round(self.vx*dt1), axis=0), np.round(self.vy*dt1), axis=1)
+        # Shift the screens to the predicted prositions
+        screen1 = np.roll(np.roll(screen1, np.round(self.vx*dt1).astype(int), axis=0), 
+                          np.round(self.vy*dt1).astype(int), axis=1)
+        screen2 = np.roll(np.roll(screen2, np.round(self.vx*dt1).astype(int), axis=0), 
+                          np.round(self.vy*dt1).astype(int), axis=1)
+
+        # Remove the padding
+        screen1 = screen1[self.shiftMax:-self.shiftMax, self.shiftMax:-self.shiftMax]
+        screen2 = screen2[self.shiftMax:-self.shiftMax, self.shiftMax:-self.shiftMax]
 
         # Generate a blank healpix map to hold the result
         propedMask = np.zeros(hp.nside2npix(self.nside))
 
-
-
         if (usemap == 'map1') | (usemap == 'both'):
             # convert screen1 from x,y to ra,dec. Use healbin.
+            x, y, dummy = hp2screen(self.cloudmask, self.mjd1)
+            ra, dec = grid2radec(x, y, self.mjd1)
+            tempMask = _healbin(ra.ravel(), dec.ravel(), screen1.ravel(),
+                                nside=self.nside, reduceFunc=np.sum)
+            tempMask[np.where(tempMask == hp.UNSEEN)] = 0
+            propedMask += tempMask
+                                   
 
         if (usemap == 'map2') | (usemap == 'both'):
-            
+            x, y, dummy = hp2screen(self.cloudmask, self.mjd2)
+            ra, dec = grid2radec(x, y, self.mjd2)
+            tempMask = _healbin(ra.ravel(), dec.ravel(), screen2.ravel(),
+                                nside=self.nside, reduceFunc=np.sum)
+            tempMask[np.where(tempMask == hp.UNSEEN)] = 0
+            propedMask += tempMask
 
-
+        # convert to a mask of 1 (cloudy) or 0 (clear)
+        propedMask[np.where(propedMask > 1)] = 1
+        return propedMask
 
 
         # What is the best way to test the forecast? Maybe say what fraction of sky is cloudy vs what fraction of 
@@ -253,7 +272,8 @@ if __name__ == '__main__':
 
     cm = CloudMotion()
     cm.set_maps(single_frame(mjd1), single_frame(mjd2), mjd1, mjd2)
-
+    dt = mjd2+10./60./24.
+    newmask = cm.forecast(dt)
 
 
     #diff = diff_hp(single_frame(umjd[startnum+1]), single_frame(umjd[startnum]))
